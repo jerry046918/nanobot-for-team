@@ -52,7 +52,12 @@ class ChannelManager:
             if not enabled:
                 continue
             try:
-                channel = cls(section, self.bus, self.team_manager)
+                team_manager = getattr(self, "team_manager", None)
+                try:
+                    channel = cls(section, self.bus, team_manager)
+                except TypeError:
+                    # Support plugins with legacy (config, bus) signature.
+                    channel = cls(section, self.bus)
                 channel.transcription_api_key = groq_key
                 self.channels[name] = channel
                 logger.info("{} channel enabled", cls.display_name)

@@ -319,6 +319,24 @@ def onboard(
 
     sync_workspace_templates(workspace_path)
 
+    # Team mode: create required directories and seed team.json if missing.
+    if config.team.enabled:
+        from nanobot.team.manager import TeamManager
+        tm = TeamManager(workspace_path)
+        users_dir = workspace_path / "users"
+        users_dir.mkdir(exist_ok=True)
+        if not tm._registry_path.exists():
+            # Write an empty registry so the file exists and is valid JSON.
+            tm._save()
+            console.print(f"[green]✓[/green] Created team registry at {tm._registry_path}")
+            console.print(
+                "  [dim]Register the first admin:[/dim] "
+                "edit team.json directly, then use /invite via chat to add more members."
+            )
+        else:
+            n = len(tm.list_members())
+            console.print(f"[green]✓[/green] Team mode enabled — {n} member(s) registered")
+
     agent_cmd = 'nanobot agent -m "Hello!"'
     gateway_cmd = "nanobot gateway"
     if config:
@@ -334,7 +352,13 @@ def onboard(
         console.print(f"  1. Add your API key to [cyan]{config_path}[/cyan]")
         console.print("     Get one at: https://openrouter.ai/keys")
         console.print(f"  2. Chat: [cyan]{agent_cmd}[/cyan]")
-    console.print("\n[dim]Want Telegram/WhatsApp? See: https://github.com/HKUDS/nanobot#-chat-apps[/dim]")
+    if config.team.enabled:
+        console.print(
+            "\n[dim]Team mode is ON. Register the first admin in "
+            f"{workspace_path / 'team.json'}, then use /invite via chat.[/dim]"
+        )
+    else:
+        console.print("\n[dim]Want Telegram/WhatsApp? See README for channel setup.[/dim]")
 
 
 def _merge_missing_defaults(existing: Any, defaults: Any) -> Any:

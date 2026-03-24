@@ -308,9 +308,13 @@ class MemoryConsolidator:
     async def consolidate_messages(
         self,
         messages: list[dict[str, object]],
-        session_key: str = "",
     ) -> bool:
-        """Archive a selected message chunk into persistent memory."""
+        """Archive a selected message chunk into persistent memory.
+
+        Team-aware: if _current_session_key is set on the instance (set by
+        _consolidate_for_session before calling this), member routing is applied.
+        """
+        session_key = getattr(self, "_current_session_key", "")
         member = self._resolve_member_for_session(session_key)
         user_profile_path = (
             self.team_manager.user_profile_path(member.nickname)
@@ -321,6 +325,18 @@ class MemoryConsolidator:
             messages, self.provider, self.model,
             member=member, user_profile_path=user_profile_path,
         )
+
+    async def _consolidate_for_session(
+        self,
+        messages: list[dict[str, object]],
+        session_key: str,
+    ) -> bool:
+        """Call consolidate_messages with team session context set."""
+        self._current_session_key = session_key
+        try:
+            return await self.consolidate_messages(messages)
+        finally:
+            self._current_session_key = ""
 
     def pick_consolidation_boundary(
         self,
@@ -370,7 +386,7 @@ class MemoryConsolidator:
         if not messages:
             return True
         for _ in range(self.store._MAX_FAILURES_BEFORE_RAW_ARCHIVE):
-            if await self.consolidate_messages(messages, session_key=session_key):
+            if await self._consolidate_for_session(messages, session_key):
                 return True
         return True
 
@@ -427,7 +443,7 @@ class MemoryConsolidator:
                     source,
                     len(chunk),
                 )
-                if not await self.consolidate_messages(chunk, session_key=session.key):
+                if not await self._consolidate_for_session(chunk, session.key):
                     return
                 session.last_consolidated = end_idx
                 self.sessions.save(session)

@@ -823,18 +823,21 @@ _SETTINGS_SECTIONS: dict[str, tuple[str, str, set[str] | None]] = {
     "Agent Settings": ("Agent Defaults", "Configure default model, temperature, and behavior", None),
     "Gateway": ("Gateway Settings", "Configure server host, port, and heartbeat", None),
     "Tools": ("Tools Settings", "Configure web search, shell exec, and other tools", {"mcp_servers"}),
+    "Team Mode": ("Team Mode", "Enable shared team assistant with per-member identity", None),
 }
 
 _SETTINGS_GETTER = {
     "Agent Settings": lambda c: c.agents.defaults,
     "Gateway": lambda c: c.gateway,
     "Tools": lambda c: c.tools,
+    "Team Mode": lambda c: c.team,
 }
 
 _SETTINGS_SETTER = {
     "Agent Settings": lambda c, v: setattr(c.agents, "defaults", v),
     "Gateway": lambda c, v: setattr(c, "gateway", v),
     "Tools": lambda c, v: setattr(c, "tools", v),
+    "Team Mode": lambda c, v: setattr(c, "team", v),
 }
 
 
@@ -918,6 +921,7 @@ def _show_summary(config: Config) -> None:
         ("Gateway", config.gateway),
         ("Tools", config.tools),
         ("Channel Common", config.channels),
+        ("Team Mode", config.team),
     ]:
         _print_summary_panel(_summarize_model(model), title)
 
@@ -987,6 +991,7 @@ def run_onboard(initial_config: Config | None = None) -> OnboardResult:
                     "[A] Agent Settings",
                     "[G] Gateway",
                     "[T] Tools",
+                    "[M] Team Mode",
                     "[V] View Configuration Summary",
                     "[S] Save and Exit",
                     "[X] Exit Without Saving",
@@ -1010,6 +1015,7 @@ def run_onboard(initial_config: Config | None = None) -> OnboardResult:
             "[A] Agent Settings": lambda: _configure_general_settings(config, "Agent Settings"),
             "[G] Gateway": lambda: _configure_general_settings(config, "Gateway"),
             "[T] Tools": lambda: _configure_general_settings(config, "Tools"),
+            "[M] Team Mode": lambda: _configure_general_settings(config, "Team Mode"),
             "[V] View Configuration Summary": lambda: _show_summary(config),
         }
 
