@@ -135,39 +135,31 @@
 
 ## 📦 Install
 
-**Install from source** (latest features, recommended for development)
+> [!NOTE]
+> This is the **Team Edition** fork of nanobot. It is not published to PyPI — install from source.
+
+**Install from source** (recommended)
 
 ```bash
-git clone https://github.com/HKUDS/nanobot.git
-cd nanobot
+git clone https://github.com/jerry046918/nanobot-for-team.git
+cd nanobot-for-team
 pip install -e .
 ```
 
-**Install with [uv](https://github.com/astral-sh/uv)** (stable, fast)
+**Install with [uv](https://github.com/astral-sh/uv)**
 
 ```bash
-uv tool install nanobot-ai
-```
-
-**Install from PyPI** (stable)
-
-```bash
-pip install nanobot-ai
+git clone https://github.com/jerry046918/nanobot-for-team.git
+cd nanobot-for-team
+uv pip install -e .
 ```
 
 ### Update to latest version
 
-**PyPI / pip**
-
 ```bash
-pip install -U nanobot-ai
-nanobot --version
-```
-
-**uv**
-
-```bash
-uv tool upgrade nanobot-ai
+cd nanobot-for-team
+git pull
+pip install -e .
 nanobot --version
 ```
 
@@ -882,8 +874,8 @@ Uses **HTTP long-poll** with QR-code login via the ilinkai personal WeChat API. 
 **1. Install from source**
 
 ```bash
-git clone https://github.com/HKUDS/nanobot.git
-cd nanobot
+git clone https://github.com/jerry046918/nanobot-for-team.git
+cd nanobot-for-team
 pip install -e ".[weixin]"
 ```
 
