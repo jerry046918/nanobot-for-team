@@ -19,3 +19,13 @@ Get USER_ID and CHANNEL from the current session (e.g., `8281248569` and `telegr
 - **Rewrite**: `write_file` to replace all tasks
 
 When the user asks for a recurring/periodic task, update `HEARTBEAT.md` instead of creating a one-time cron reminder.
+
+## Team Mode
+
+When team mode is enabled (`"team": {"enabled": true}` in config.json), nanobot serves a shared team:
+
+- Members are registered in `team.json` via `/invite <nickname> <channel>:<sender_id>` (admin only).
+- Per-user profiles are stored in `users/{nickname}/USER.md`.
+- Shared team knowledge goes in `memory/MEMORY.md`.
+- Cron jobs show the creator; only the creator or an admin can remove them.
+- Use `/team` to list members, `/promote`/`/demote`/`/kick` to manage roles (admin only).

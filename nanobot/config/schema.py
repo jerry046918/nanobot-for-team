@@ -91,6 +91,15 @@ class HeartbeatConfig(Base):
     enabled: bool = True
     interval_s: int = 30 * 60  # 30 minutes
     keep_recent_messages: int = 8
+    notify: list[str] = Field(default_factory=list)
+    """Nicknames to notify on heartbeat completion (empty = auto-pick most recent session)."""
+
+
+class TeamConfig(Base):
+    """Team-mode configuration."""
+
+    enabled: bool = False
+    """Set to true to enable team mode (multi-user support with per-member identity)."""
 
 
 class GatewayConfig(Base):
@@ -155,6 +164,7 @@ class Config(BaseSettings):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    team: TeamConfig = Field(default_factory=TeamConfig)
 
     @property
     def workspace_path(self) -> Path:

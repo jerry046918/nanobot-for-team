@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 from nanobot.bus.events import InboundMessage, OutboundMessage
 from nanobot.bus.queue import MessageBus
+
+if TYPE_CHECKING:
+    from nanobot.team.manager import TeamManager
+    from nanobot.team.schema import TeamMember
 
 
 class BaseChannel(ABC):
@@ -24,16 +28,18 @@ class BaseChannel(ABC):
     display_name: str = "Base"
     transcription_api_key: str = ""
 
-    def __init__(self, config: Any, bus: MessageBus):
+    def __init__(self, config: Any, bus: MessageBus, team_manager: TeamManager | None = None):
         """
         Initialize the channel.
 
         Args:
             config: Channel-specific configuration.
             bus: The message bus for communication.
+            team_manager: Optional team manager for multi-user support.
         """
         self.config = config
         self.bus = bus
+        self.team_manager = team_manager
         self._running = False
 
     async def transcribe_audio(self, file_path: str | Path) -> str:
@@ -100,8 +106,22 @@ class BaseChannel(ABC):
         return bool(streaming) and type(self).send_delta is not BaseChannel.send_delta
 
     def is_allowed(self, sender_id: str) -> bool:
-        """Check if *sender_id* is permitted.  Empty list → deny all; ``"*"`` → allow all."""
+        """Check if *sender_id* is permitted.
+
+        When a TeamManager is present, a sender is allowed if they are a
+        registered team member on this channel.  The allow_from list still
+        acts as a fallback/override: ``"*"`` permits everyone (useful during
+        onboarding before the team registry is populated), and an explicit
+        list of IDs grants access beyond the team registry.
+        """
         allow_list = getattr(self.config, "allow_from", [])
+
+        # Team-mode: accept any registered member on this channel.
+        if self.team_manager and self.team_manager.has_members():
+            if self.team_manager.resolve_member(self.name, sender_id) is not None:
+                return True
+            # Fall through to allow_from so admins can still use "*" during setup.
+
         if not allow_list:
             logger.warning("{}: allow_from is empty — all access denied", self.name)
             return False
@@ -117,11 +137,13 @@ class BaseChannel(ABC):
         media: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
         session_key: str | None = None,
+        is_dm: bool = False,
     ) -> None:
         """
         Handle an incoming message from the chat platform.
 
-        This method checks permissions and forwards to the bus.
+        This method checks permissions, resolves the team member, and
+        forwards the message to the bus.
 
         Args:
             sender_id: The sender's identifier.
@@ -130,18 +152,26 @@ class BaseChannel(ABC):
             media: Optional list of media URLs.
             metadata: Optional channel-specific metadata.
             session_key: Optional session key override (e.g. thread-scoped sessions).
+            is_dm: True when this is a private/direct message (not a group chat).
         """
         if not self.is_allowed(sender_id):
             logger.warning(
                 "Access denied for sender {} on channel {}. "
-                "Add them to allowFrom list in config to grant access.",
+                "Add them to allowFrom list in config or invite them with /invite.",
                 sender_id, self.name,
             )
             return
 
-        meta = metadata or {}
+        meta = dict(metadata or {})
         if self.supports_streaming:
-            meta = {**meta, "_wants_stream": True}
+            meta["_wants_stream"] = True
+        if is_dm:
+            meta["_is_dm"] = True
+
+        # Resolve team member for richer context injection.
+        member = None
+        if self.team_manager:
+            member = self.team_manager.resolve_member(self.name, str(sender_id))
 
         msg = InboundMessage(
             channel=self.name,
@@ -151,6 +181,7 @@ class BaseChannel(ABC):
             media=media or [],
             metadata=meta,
             session_key_override=session_key,
+            member=member,
         )
 
         await self.bus.publish_inbound(msg)

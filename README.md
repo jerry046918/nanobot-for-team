@@ -1,6 +1,6 @@
 <div align="center">
   <img src="nanobot_logo.png" alt="nanobot" width="500">
-  <h1>nanobot: Ultra-Lightweight Personal AI Assistant</h1>
+  <h1>nanobot: Ultra-Lightweight AI Assistant for Teams</h1>
   <p>
     <a href="https://pypi.org/project/nanobot-ai/"><img src="https://img.shields.io/pypi/v/nanobot-ai" alt="PyPI"></a>
     <a href="https://pepy.tech/project/nanobot-ai"><img src="https://static.pepy.tech/badge/nanobot-ai" alt="Downloads"></a>
@@ -12,7 +12,7 @@
   </p>
 </div>
 
-🐈 **nanobot** is an **ultra-lightweight** personal AI assistant inspired by [OpenClaw](https://github.com/openclaw/openclaw).
+🐈 **nanobot** is an **ultra-lightweight** AI assistant — now with **Team Mode** for shared use across a whole team.
 
 ⚡️ Delivers core agent functionality with **99% fewer lines of code** than OpenClaw.
 
@@ -82,6 +82,8 @@
 
 💎 **Easy-to-Use**: One-click to deploy and you're ready to go.
 
+👥 **Team Mode**: Share one assistant across your whole team — with per-member identity, dual-layer memory, role management, and per-user private sessions.
+
 ## 🏗️ Architecture
 
 <p align="center">
@@ -96,6 +98,7 @@
 - [Features](#-features)
 - [Install](#-install)
 - [Quick Start](#-quick-start)
+- [Team Mode](#-team-mode)
 - [Chat Apps](#-chat-apps)
 - [Agent Social Network](#-agent-social-network)
 - [Configuration](#️-configuration)
@@ -227,6 +230,156 @@ nanobot agent
 ```
 
 That's it! You have a working AI assistant in 2 minutes.
+
+## 👥 Team Mode
+
+Team Mode lets a whole team share one nanobot instance. Each member is recognized by their nickname across all channels, has a private conversation session, and a personal profile (`USER.md`) that nanobot learns over time. Shared knowledge goes into team memory (`MEMORY.md`). Admins manage membership with slash commands.
+
+### How it works
+
+| Feature | Description |
+|---------|-------------|
+| **Member identity** | Each message is matched to a registered nickname via channel sender ID |
+| **DM isolation** | Private messages use a per-user session (`users/{nickname}/sessions/`) |
+| **Dual-layer memory** | Shared team facts in `memory/MEMORY.md`; personal context in `users/{nickname}/USER.md` |
+| **Role system** | `admin` — can invite, kick, promote; `member` — uses the assistant normally |
+| **Cron ownership** | Cron jobs record the creator; only the creator or an admin can delete them |
+
+### Deployment steps
+
+**1. Enable Team Mode in config**
+
+Add to `~/.nanobot/config.json`:
+
+```json
+{
+  "team": {
+    "enabled": true
+  }
+}
+```
+
+**2. Start the gateway**
+
+```bash
+nanobot gateway
+```
+
+Startup log will confirm: `Team mode enabled (0 members)`.
+
+**3. Register the first admin**
+
+There is no web UI — membership is managed entirely through slash commands sent to the bot. The first member must be added by editing `team.json` directly (bootstrap), then that admin can invite everyone else via chat.
+
+Create `~/.nanobot/workspace/team.json`:
+
+```json
+{
+  "version": 1,
+  "members": [
+    {
+      "nickname": "alice",
+      "role": "admin",
+      "channel_ids": { "telegram": "YOUR_TELEGRAM_USER_ID" },
+      "joined_at": "2026-01-01T00:00:00+00:00",
+      "invited_by": null
+    }
+  ]
+}
+```
+
+Replace `YOUR_TELEGRAM_USER_ID` with the numeric Telegram user ID (use `@userinfobot` to find it). Restart the gateway after editing.
+
+> **Tip:** Find any user's sender ID in nanobot logs — it is printed when the first message arrives from that user.
+
+**4. Invite more members** (as admin, via chat)
+
+Send to the bot from alice's account:
+
+```
+/invite bob telegram:123456789
+```
+
+This registers `bob` with role `member` and binds their Telegram ID. Bob can now message the bot and be recognized.
+
+**5. Bind additional channels** (optional)
+
+If a member uses multiple platforms:
+
+```
+/bind bob slack:U012AB3CD
+```
+
+Now bob is recognized on both Telegram and Slack.
+
+---
+
+### Team slash commands
+
+| Command | Who can use | Description |
+|---------|-------------|-------------|
+| `/team` | Everyone | List all team members and their channel bindings |
+| `/invite <nickname> <channel>:<id>` | Admin | Register a new member |
+| `/bind <nickname> <channel>:<id>` | Admin | Add a new channel binding for an existing member |
+| `/promote <nickname>` | Admin | Grant admin role |
+| `/demote <nickname>` | Admin | Revoke admin role |
+| `/kick <nickname>` | Admin | Remove a member |
+| `/profile` | Everyone | View your own `USER.md` profile |
+
+---
+
+### Workspace layout (team mode)
+
+```
+~/.nanobot/workspace/
+├── team.json                    # member registry
+├── memory/
+│   ├── MEMORY.md                # shared team long-term memory
+│   └── HISTORY.md               # shared conversation history log
+├── users/
+│   ├── alice/
+│   │   ├── USER.md              # alice's personal profile (auto-learned)
+│   │   └── sessions/            # alice's private DM sessions
+│   └── bob/
+│       ├── USER.md
+│       └── sessions/
+├── cron/
+│   └── jobs.json                # scheduled jobs (with creator field)
+└── skills/                      # shared team skills
+```
+
+---
+
+### Heartbeat notifications (team mode)
+
+By default the heartbeat delivers to the most recently active non-internal session. In team mode you can pin specific members to always receive heartbeat results:
+
+```json
+{
+  "gateway": {
+    "heartbeat": {
+      "enabled": true,
+      "intervalS": 1800,
+      "notify": ["alice", "bob"]
+    }
+  }
+}
+```
+
+The first member in `notify` who has an active channel binding is used as the delivery target.
+
+---
+
+### How memory consolidation works
+
+When a conversation is archived (token limit reached or `/new`), nanobot automatically:
+
+- Writes **team-relevant** facts (projects, decisions, shared context) to `memory/MEMORY.md`
+- Writes **user-specific** facts (preferences, work style, skills) to `users/{nickname}/USER.md`
+
+Both files are injected into the system prompt for every message — the team memory for everyone, the personal profile only for the sender.
+
+---
 
 ## 💬 Chat Apps
 
@@ -1594,19 +1747,26 @@ If you edit the `.service` file itself, run `systemctl --user daemon-reload` bef
 nanobot/
 ├── agent/          # 🧠 Core agent logic
 │   ├── loop.py     #    Agent loop (LLM ↔ tool execution)
-│   ├── context.py  #    Prompt builder
-│   ├── memory.py   #    Persistent memory
+│   ├── context.py  #    Prompt builder (team + user memory injection)
+│   ├── memory.py   #    Dual-layer persistent memory
 │   ├── skills.py   #    Skills loader
 │   ├── subagent.py #    Background task execution
-│   └── tools/      #    Built-in tools (incl. spawn)
+│   └── tools/      #    Built-in tools (incl. spawn, cron)
+├── team/           # 👥 Team mode
+│   ├── schema.py   #    TeamMember / TeamRegistry dataclasses
+│   └── manager.py  #    Member CRUD, channel resolution, per-user paths
+├── command/        # 💬 Slash command routing
+│   ├── router.py   #    CommandRouter (priority / exact / prefix)
+│   ├── builtin.py  #    /new, /stop, /status, /help, /restart
+│   └── team.py     #    /team, /invite, /bind, /promote, /demote, /kick, /profile
 ├── skills/         # 🎯 Bundled skills (github, weather, tmux...)
 ├── channels/       # 📱 Chat channel integrations (supports plugins)
 ├── bus/            # 🚌 Message routing
-├── cron/           # ⏰ Scheduled tasks
+├── cron/           # ⏰ Scheduled tasks (with per-creator ownership)
 ├── heartbeat/      # 💓 Proactive wake-up
 ├── providers/      # 🤖 LLM providers (OpenRouter, etc.)
-├── session/        # 💬 Conversation sessions
-├── config/         # ⚙️ Configuration
+├── session/        # 💬 Conversation sessions (per-user DM routing)
+├── config/         # ⚙️  Configuration (incl. TeamConfig)
 └── cli/            # 🖥️ Commands
 ```
 

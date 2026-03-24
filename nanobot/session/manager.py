@@ -12,6 +12,10 @@ from loguru import logger
 from nanobot.config.paths import get_legacy_sessions_dir
 from nanobot.utils.helpers import ensure_dir, safe_filename
 
+# Session keys for user DMs follow the pattern  "<channel>:user:<nickname>".
+# This prefix marks them as user-scoped so they are stored under users/<nick>/sessions/.
+_USER_SESSION_PREFIX = ":user:"
+
 
 @dataclass
 class Session:
@@ -130,6 +134,8 @@ class SessionManager:
     Manages conversation sessions.
 
     Sessions are stored as JSONL files in the sessions directory.
+    User DM sessions (key contains ':user:') are stored under
+    {workspace}/users/{nickname}/sessions/ for per-user isolation.
     """
 
     def __init__(self, workspace: Path):
@@ -139,7 +145,15 @@ class SessionManager:
         self._cache: dict[str, Session] = {}
 
     def _get_session_path(self, key: str) -> Path:
-        """Get the file path for a session."""
+        """Get the file path for a session, routing user DMs to per-user directories."""
+        if _USER_SESSION_PREFIX in key:
+            # key format: "<channel>:user:<nickname>"
+            parts = key.split(_USER_SESSION_PREFIX, 1)
+            if len(parts) == 2:
+                nickname = parts[1]
+                user_sessions_dir = ensure_dir(self.workspace / "users" / nickname / "sessions")
+                safe_key = safe_filename(key.replace(":", "_"))
+                return user_sessions_dir / f"{safe_key}.jsonl"
         safe_key = safe_filename(key.replace(":", "_"))
         return self.sessions_dir / f"{safe_key}.jsonl"
 
@@ -240,29 +254,40 @@ class SessionManager:
 
     def list_sessions(self) -> list[dict[str, Any]]:
         """
-        List all sessions.
+        List all sessions, including per-user DM sessions.
 
         Returns:
-            List of session info dicts.
+            List of session info dicts, sorted by updated_at descending.
         """
         sessions = []
 
-        for path in self.sessions_dir.glob("*.jsonl"):
-            try:
-                # Read just the metadata line
-                with open(path, encoding="utf-8") as f:
-                    first_line = f.readline().strip()
-                    if first_line:
-                        data = json.loads(first_line)
-                        if data.get("_type") == "metadata":
-                            key = data.get("key") or path.stem.replace("_", ":", 1)
-                            sessions.append({
-                                "key": key,
-                                "created_at": data.get("created_at"),
-                                "updated_at": data.get("updated_at"),
-                                "path": str(path)
-                            })
-            except Exception:
-                continue
+        def _scan_dir(directory: Path) -> None:
+            for path in directory.glob("*.jsonl"):
+                try:
+                    with open(path, encoding="utf-8") as f:
+                        first_line = f.readline().strip()
+                        if first_line:
+                            data = json.loads(first_line)
+                            if data.get("_type") == "metadata":
+                                key = data.get("key") or path.stem.replace("_", ":", 1)
+                                sessions.append({
+                                    "key": key,
+                                    "created_at": data.get("created_at"),
+                                    "updated_at": data.get("updated_at"),
+                                    "path": str(path)
+                                })
+                except Exception:
+                    continue
+
+        # Shared group/cron sessions
+        _scan_dir(self.sessions_dir)
+
+        # Per-user DM sessions under users/*/sessions/
+        users_dir = self.workspace / "users"
+        if users_dir.exists():
+            for user_dir in users_dir.iterdir():
+                user_sessions = user_dir / "sessions"
+                if user_sessions.is_dir():
+                    _scan_dir(user_sessions)
 
         return sorted(sessions, key=lambda x: x.get("updated_at", ""), reverse=True)

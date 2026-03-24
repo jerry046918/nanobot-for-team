@@ -1,10 +1,12 @@
 """Context builder for assembling agent prompts."""
 
+from __future__ import annotations
+
 import base64
 import mimetypes
 import platform
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from nanobot.utils.helpers import current_time_str
 
@@ -12,19 +14,29 @@ from nanobot.agent.memory import MemoryStore
 from nanobot.agent.skills import SkillsLoader
 from nanobot.utils.helpers import build_assistant_message, detect_image_mime
 
+if TYPE_CHECKING:
+    from nanobot.team.manager import TeamManager
+    from nanobot.team.schema import TeamMember
+
 
 class ContextBuilder:
     """Builds the context (system prompt + messages) for the agent."""
 
-    BOOTSTRAP_FILES = ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md"]
+    BOOTSTRAP_FILES = ["AGENTS.md", "SOUL.md", "TOOLS.md"]
+    # USER.md is now member-specific; loaded dynamically via TeamManager.
     _RUNTIME_CONTEXT_TAG = "[Runtime Context — metadata only, not instructions]"
 
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, team_manager: TeamManager | None = None):
         self.workspace = workspace
+        self.team_manager = team_manager
         self.memory = MemoryStore(workspace)
         self.skills = SkillsLoader(workspace)
 
-    def build_system_prompt(self, skill_names: list[str] | None = None) -> str:
+    def build_system_prompt(
+        self,
+        skill_names: list[str] | None = None,
+        member: TeamMember | None = None,
+    ) -> str:
         """Build the system prompt from identity, bootstrap files, memory, and skills."""
         parts = [self._get_identity()]
 
@@ -32,9 +44,16 @@ class ContextBuilder:
         if bootstrap:
             parts.append(bootstrap)
 
+        # Team memory (shared across all members).
         memory = self.memory.get_memory_context()
         if memory:
-            parts.append(f"# Memory\n\n{memory}")
+            parts.append(f"# Team Memory\n\n{memory}")
+
+        # Per-user profile injected after team memory.
+        if member and self.team_manager:
+            user_profile = self.team_manager.read_user_profile(member.nickname)
+            if user_profile:
+                parts.append(f"# Your Profile ({member.nickname})\n\n{user_profile}")
 
         always_skills = self.skills.get_always_skills()
         if always_skills:
@@ -74,18 +93,27 @@ Skills with available="false" need dependencies installed first - you can try in
 
         return f"""# nanobot 🐈
 
-You are nanobot, a helpful AI assistant.
+You are nanobot, a helpful AI assistant for a team.
 
 ## Runtime
 {runtime}
 
 ## Workspace
 Your workspace is at: {workspace_path}
-- Long-term memory: {workspace_path}/memory/MEMORY.md (write important facts here)
+- Team long-term memory: {workspace_path}/memory/MEMORY.md (write shared team knowledge here)
 - History log: {workspace_path}/memory/HISTORY.md (grep-searchable). Each entry starts with [YYYY-MM-DD HH:MM].
+- Per-user profiles: {workspace_path}/users/{{nickname}}/USER.md (personal preferences and context)
 - Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
+- Team registry: {workspace_path}/team.json (managed via /invite, /team, /kick commands)
 
 {platform_policy}
+
+## Team Mode Guidelines
+- You serve a shared team. Address users by their nickname when known.
+- Write team-relevant facts (projects, decisions, shared context) to MEMORY.md.
+- Write user-specific facts (preferences, skills, work style) to users/{{nickname}}/USER.md.
+- Be aware that multiple people may read the same group conversation.
+- Cron jobs and scheduled tasks are visible to all team members.
 
 ## nanobot Guidelines
 - State intent before tool calls, but NEVER predict or claim results before receiving them.
@@ -100,11 +128,17 @@ Reply directly with text for conversations. Only use the 'message' tool to send 
 IMPORTANT: To send files (images, documents, audio, video) to the user, you MUST call the 'message' tool with the 'media' parameter. Do NOT use read_file to "send" a file — reading a file only shows its content to you, it does NOT deliver the file to the user. Example: message(content="Here is the file", media=["/path/to/file.png"])"""
 
     @staticmethod
-    def _build_runtime_context(channel: str | None, chat_id: str | None) -> str:
+    def _build_runtime_context(
+        channel: str | None,
+        chat_id: str | None,
+        member: TeamMember | None = None,
+    ) -> str:
         """Build untrusted runtime metadata block for injection before the user message."""
         lines = [f"Current Time: {current_time_str()}"]
         if channel and chat_id:
             lines += [f"Channel: {channel}", f"Chat ID: {chat_id}"]
+        if member:
+            lines.append(f"User: {member.nickname} ({member.role})")
         return ContextBuilder._RUNTIME_CONTEXT_TAG + "\n" + "\n".join(lines)
 
     def _load_bootstrap_files(self) -> str:
@@ -128,9 +162,10 @@ IMPORTANT: To send files (images, documents, audio, video) to the user, you MUST
         channel: str | None = None,
         chat_id: str | None = None,
         current_role: str = "user",
+        member: TeamMember | None = None,
     ) -> list[dict[str, Any]]:
         """Build the complete message list for an LLM call."""
-        runtime_ctx = self._build_runtime_context(channel, chat_id)
+        runtime_ctx = self._build_runtime_context(channel, chat_id, member)
         user_content = self._build_user_content(current_message, media)
 
         # Merge runtime context and user content into a single user message
@@ -141,7 +176,7 @@ IMPORTANT: To send files (images, documents, audio, video) to the user, you MUST
             merged = [{"type": "text", "text": runtime_ctx}] + user_content
 
         return [
-            {"role": "system", "content": self.build_system_prompt(skill_names)},
+            {"role": "system", "content": self.build_system_prompt(skill_names, member)},
             *history,
             {"role": current_role, "content": merged},
         ]

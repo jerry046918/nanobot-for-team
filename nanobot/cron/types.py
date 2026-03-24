@@ -60,6 +60,7 @@ class CronJob:
     created_at_ms: int = 0
     updated_at_ms: int = 0
     delete_after_run: bool = False
+    created_by: str | None = None  # nickname of the team member who created this job
 
 
 @dataclass

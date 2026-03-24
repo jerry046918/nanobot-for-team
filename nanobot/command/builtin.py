@@ -85,12 +85,21 @@ async def cmd_new(ctx: CommandContext) -> OutboundMessage:
 async def cmd_help(ctx: CommandContext) -> OutboundMessage:
     """Return available slash commands."""
     lines = [
-        "🐈 nanobot commands:",
+        "nanobot commands:",
         "/new — Start a new conversation",
         "/stop — Stop the current task",
         "/restart — Restart the bot",
         "/status — Show bot status",
         "/help — Show available commands",
+        "",
+        "Team commands:",
+        "/team — List all team members",
+        "/invite <nickname> <channel>:<id> — Add a new member (admin only)",
+        "/bind <nickname> <channel>:<id> — Add channel binding for a member (admin only)",
+        "/promote <nickname> — Make a member admin (admin only)",
+        "/demote <nickname> — Remove admin role (admin only)",
+        "/kick <nickname> — Remove a member (admin only)",
+        "/profile — View your personal profile",
     ]
     return OutboundMessage(
         channel=ctx.msg.channel,
@@ -102,9 +111,12 @@ async def cmd_help(ctx: CommandContext) -> OutboundMessage:
 
 def register_builtin_commands(router: CommandRouter) -> None:
     """Register the default set of slash commands."""
+    from nanobot.command.team import register_team_commands
+
     router.priority("/stop", cmd_stop)
     router.priority("/restart", cmd_restart)
     router.priority("/status", cmd_status)
     router.exact("/new", cmd_new)
     router.exact("/status", cmd_status)
     router.exact("/help", cmd_help)
+    register_team_commands(router)

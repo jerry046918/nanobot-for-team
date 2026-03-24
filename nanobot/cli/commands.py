@@ -511,6 +511,7 @@ def gateway(
     from nanobot.cron.types import CronJob
     from nanobot.heartbeat.service import HeartbeatService
     from nanobot.session.manager import SessionManager
+    from nanobot.team.manager import TeamManager
 
     if verbose:
         import logging
@@ -524,6 +525,12 @@ def gateway(
     bus = MessageBus()
     provider = _make_provider(config)
     session_manager = SessionManager(config.workspace_path)
+
+    # Initialize team manager when team mode is enabled.
+    team_manager = None
+    if config.team.enabled:
+        team_manager = TeamManager(config.workspace_path)
+        console.print(f"[green]✓[/green] Team mode enabled ({len(team_manager.list_members())} members)")
 
     # Preserve existing single-workspace installs, but keep custom workspaces clean.
     if is_default_workspace(config.workspace_path):
@@ -549,6 +556,7 @@ def gateway(
         session_manager=session_manager,
         mcp_servers=config.tools.mcp_servers,
         channels_config=config.channels,
+        team_manager=team_manager,
     )
 
     # Set cron callback (needs agent)
@@ -600,11 +608,26 @@ def gateway(
     cron.on_job = on_cron_job
 
     # Create channel manager
-    channels = ChannelManager(config, bus)
+    channels = ChannelManager(config, bus, team_manager=team_manager)
 
     def _pick_heartbeat_target() -> tuple[str, str]:
-        """Pick a routable channel/chat target for heartbeat-triggered messages."""
+        """Pick a routable channel/chat target for heartbeat-triggered messages.
+
+        When team mode is enabled and heartbeat.notify lists specific nicknames,
+        return the channel/chat for the first listed nickname that has a known binding.
+        Otherwise fall back to the most recently updated non-internal session.
+        """
         enabled = set(channels.enabled_channels)
+
+        # Team-mode: prefer configured notify list.
+        if team_manager and hb_cfg.notify:
+            for nick in hb_cfg.notify:
+                member = team_manager.get_member_by_nickname(nick)
+                if member:
+                    for ch, sid in member.channel_ids.items():
+                        if ch in enabled:
+                            return ch, sid
+
         # Prefer the most recently updated non-internal session on an enabled channel.
         for item in session_manager.list_sessions():
             key = item.get("key") or ""
@@ -612,6 +635,9 @@ def gateway(
                 continue
             channel, chat_id = key.split(":", 1)
             if channel in {"cli", "system"}:
+                continue
+            # Skip user DM session keys (format: "<channel>:user:<nickname>")
+            if "user:" in chat_id:
                 continue
             if channel in enabled and chat_id:
                 return channel, chat_id

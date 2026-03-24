@@ -16,6 +16,7 @@ from nanobot.utils.helpers import ensure_dir, estimate_message_tokens, estimate_
 if TYPE_CHECKING:
     from nanobot.providers.base import LLMProvider
     from nanobot.session.manager import Session, SessionManager
+    from nanobot.team.schema import TeamMember
 
 
 _SAVE_MEMORY_TOOL = [
@@ -34,8 +35,14 @@ _SAVE_MEMORY_TOOL = [
                     },
                     "memory_update": {
                         "type": "string",
-                        "description": "Full updated long-term memory as markdown. Include all existing "
+                        "description": "Full updated team long-term memory as markdown. Include all existing "
                         "facts plus new ones. Return unchanged if nothing new.",
+                    },
+                    "user_profile_update": {
+                        "type": "string",
+                        "description": "Updated USER.md content for this specific user: their preferences, "
+                        "skills, work style, and personal context. Return empty string if no user identified "
+                        "or no user-specific updates needed.",
                     },
                 },
                 "required": ["history_entry", "memory_update"],
@@ -116,22 +123,48 @@ class MemoryStore:
         messages: list[dict],
         provider: LLMProvider,
         model: str,
+        member: TeamMember | None = None,
+        user_profile_path: Path | None = None,
     ) -> bool:
-        """Consolidate the provided message chunk into MEMORY.md + HISTORY.md."""
+        """Consolidate the provided message chunk into MEMORY.md + HISTORY.md.
+
+        When *member* is provided, the LLM is also instructed to extract
+        user-specific facts and write them to *user_profile_path* (USER.md).
+        """
         if not messages:
             return True
 
         current_memory = self.read_long_term()
+        current_profile = ""
+        if member and user_profile_path and user_profile_path.exists():
+            current_profile = user_profile_path.read_text(encoding="utf-8")
+
+        user_section = ""
+        if member:
+            user_section = f"""
+## Current User Profile ({member.nickname})
+{current_profile or "(empty)"}
+
+Instructions: Separate team knowledge (shared projects, decisions, facts) into memory_update,
+and personal facts about {member.nickname} (preferences, skills, work style, individual context)
+into user_profile_update."""
+
         prompt = f"""Process this conversation and call the save_memory tool with your consolidation.
 
-## Current Long-term Memory
+## Current Team Memory
 {current_memory or "(empty)"}
-
+{user_section}
 ## Conversation to Process
 {self._format_messages(messages)}"""
 
+        system_content = (
+            "You are a memory consolidation agent for a team assistant. "
+            "Call the save_memory tool with your consolidation of the conversation. "
+            "Separate team-level shared knowledge (memory_update) from personal user facts (user_profile_update)."
+        )
+
         chat_messages = [
-            {"role": "system", "content": "You are a memory consolidation agent. Call the save_memory tool with your consolidation of the conversation."},
+            {"role": "system", "content": system_content},
             {"role": "user", "content": prompt},
         ]
 
@@ -191,6 +224,15 @@ class MemoryStore:
             if update != current_memory:
                 self.write_long_term(update)
 
+            # Persist user-specific profile update when a member is identified.
+            user_profile_update = args.get("user_profile_update")
+            if member and user_profile_path and user_profile_update:
+                user_profile_update = _ensure_text(user_profile_update).strip()
+                if user_profile_update and user_profile_update != current_profile:
+                    user_profile_path.parent.mkdir(parents=True, exist_ok=True)
+                    user_profile_path.write_text(user_profile_update, encoding="utf-8")
+                    logger.info("User profile updated for {}", member.nickname)
+
             self._consecutive_failures = 0
             logger.info("Memory consolidation done for {} messages", len(messages))
             return True
@@ -236,6 +278,7 @@ class MemoryConsolidator:
         build_messages: Callable[..., list[dict[str, Any]]],
         get_tool_definitions: Callable[[], list[dict[str, Any]]],
         max_completion_tokens: int = 4096,
+        team_manager: Any | None = None,
     ):
         self.store = MemoryStore(workspace)
         self.provider = provider
@@ -246,14 +289,38 @@ class MemoryConsolidator:
         self._build_messages = build_messages
         self._get_tool_definitions = get_tool_definitions
         self._locks: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
+        self.team_manager = team_manager
 
     def get_lock(self, session_key: str) -> asyncio.Lock:
         """Return the shared consolidation lock for one session."""
         return self._locks.setdefault(session_key, asyncio.Lock())
 
-    async def consolidate_messages(self, messages: list[dict[str, object]]) -> bool:
+    def _resolve_member_for_session(self, session_key: str) -> TeamMember | None:
+        """Derive the TeamMember for a user DM session key, if any."""
+        if not self.team_manager:
+            return None
+        # DM session keys: "<channel>:user:<nickname>"
+        if ":user:" in session_key:
+            nickname = session_key.split(":user:", 1)[1]
+            return self.team_manager.get_member_by_nickname(nickname)
+        return None
+
+    async def consolidate_messages(
+        self,
+        messages: list[dict[str, object]],
+        session_key: str = "",
+    ) -> bool:
         """Archive a selected message chunk into persistent memory."""
-        return await self.store.consolidate(messages, self.provider, self.model)
+        member = self._resolve_member_for_session(session_key)
+        user_profile_path = (
+            self.team_manager.user_profile_path(member.nickname)
+            if member and self.team_manager
+            else None
+        )
+        return await self.store.consolidate(
+            messages, self.provider, self.model,
+            member=member, user_profile_path=user_profile_path,
+        )
 
     def pick_consolidation_boundary(
         self,
@@ -294,12 +361,16 @@ class MemoryConsolidator:
             self._get_tool_definitions(),
         )
 
-    async def archive_messages(self, messages: list[dict[str, object]]) -> bool:
+    async def archive_messages(
+        self,
+        messages: list[dict[str, object]],
+        session_key: str = "",
+    ) -> bool:
         """Archive messages with guaranteed persistence (retries until raw-dump fallback)."""
         if not messages:
             return True
         for _ in range(self.store._MAX_FAILURES_BEFORE_RAW_ARCHIVE):
-            if await self.consolidate_messages(messages):
+            if await self.consolidate_messages(messages, session_key=session_key):
                 return True
         return True
 
@@ -356,7 +427,7 @@ class MemoryConsolidator:
                     source,
                     len(chunk),
                 )
-                if not await self.consolidate_messages(chunk):
+                if not await self.consolidate_messages(chunk, session_key=session.key):
                     return
                 session.last_consolidated = end_idx
                 self.sessions.save(session)

@@ -33,6 +33,7 @@ from nanobot.session.manager import Session, SessionManager
 if TYPE_CHECKING:
     from nanobot.config.schema import ChannelsConfig, ExecToolConfig, WebSearchConfig
     from nanobot.cron.service import CronService
+    from nanobot.team.manager import TeamManager
 
 
 class AgentLoop:
@@ -65,11 +66,13 @@ class AgentLoop:
         session_manager: SessionManager | None = None,
         mcp_servers: dict | None = None,
         channels_config: ChannelsConfig | None = None,
+        team_manager: TeamManager | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig, WebSearchConfig
 
         self.bus = bus
         self.channels_config = channels_config
+        self.team_manager = team_manager
         self.provider = provider
         self.workspace = workspace
         self.model = model or provider.get_default_model()
@@ -83,7 +86,7 @@ class AgentLoop:
         self._start_time = time.time()
         self._last_usage: dict[str, int] = {}
 
-        self.context = ContextBuilder(workspace)
+        self.context = ContextBuilder(workspace, team_manager=team_manager)
         self.sessions = session_manager or SessionManager(workspace)
         self.tools = ToolRegistry()
         self.subagents = SubagentManager(
@@ -119,6 +122,7 @@ class AgentLoop:
             build_messages=self.context.build_messages,
             get_tool_definitions=self.tools.get_definitions,
             max_completion_tokens=provider.generation.max_tokens,
+            team_manager=team_manager,
         )
         self._register_default_tools()
         self.commands = CommandRouter()
@@ -167,12 +171,22 @@ class AgentLoop:
         finally:
             self._mcp_connecting = False
 
-    def _set_tool_context(self, channel: str, chat_id: str, message_id: str | None = None) -> None:
+    def _set_tool_context(
+        self,
+        channel: str,
+        chat_id: str,
+        message_id: str | None = None,
+        member: Any = None,
+    ) -> None:
         """Update context for all tools that need routing info."""
         for name in ("message", "spawn", "cron"):
             if tool := self.tools.get(name):
                 if hasattr(tool, "set_context"):
                     tool.set_context(channel, chat_id, *([message_id] if name == "message" else []))
+        if member is not None:
+            if cron_tool := self.tools.get("cron"):
+                if hasattr(cron_tool, "set_member"):
+                    cron_tool.set_member(member)
 
     @staticmethod
     def _strip_think(text: str | None) -> str | None:
@@ -474,7 +488,8 @@ class AgentLoop:
 
         await self.memory_consolidator.maybe_consolidate_by_tokens(session)
 
-        self._set_tool_context(msg.channel, msg.chat_id, msg.metadata.get("message_id"))
+        member = getattr(msg, "member", None)
+        self._set_tool_context(msg.channel, msg.chat_id, msg.metadata.get("message_id"), member=member)
         if message_tool := self.tools.get("message"):
             if isinstance(message_tool, MessageTool):
                 message_tool.start_turn()
@@ -485,6 +500,7 @@ class AgentLoop:
             current_message=msg.content,
             media=msg.media if msg.media else None,
             channel=msg.channel, chat_id=msg.chat_id,
+            member=member,
         )
 
         async def _bus_progress(content: str, *, tool_hint: bool = False) -> None:
