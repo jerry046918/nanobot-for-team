@@ -28,8 +28,13 @@ class SessionManager:
         return session_id
 
     def validate_session(self, session_id: str) -> bool:
-        """Check if session exists and is valid."""
-        return session_id in self._sessions
+        """Check if session exists and is not expired."""
+        session = self._sessions.get(session_id)
+        if not session:
+            return False
+        created = datetime.fromisoformat(session["created_at"])
+        age = datetime.now(timezone.utc) - created
+        return age < timedelta(hours=24)
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
         """Get session data."""
@@ -41,6 +46,17 @@ class SessionManager:
             del self._sessions[session_id]
             return True
         return False
+
+    def cleanup_expired(self, max_age_hours: int = 24) -> int:
+        """Remove expired sessions. Returns count removed."""
+        now = datetime.now(timezone.utc)
+        expired = [
+            sid for sid, s in self._sessions.items()
+            if datetime.fromisoformat(s["created_at"]) + timedelta(hours=max_age_hours) < now
+        ]
+        for sid in expired:
+            del self._sessions[sid]
+        return len(expired)
 
 
 class TokenManager:
