@@ -1,0 +1,658 @@
+{% extends "base.html" %}
+
+{% block title %}Team - nanobot{% endblock %}
+
+{% block head %}
+<style>
+    .team-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .team-header h2 {
+        margin: 0;
+        color: var(--text-primary);
+    }
+
+    .team-add-btn {
+        padding: var(--spacing-sm) var(--spacing-md);
+        background-color: var(--accent);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-size: 0.875rem;
+        transition: background-color 0.2s;
+    }
+
+    .team-add-btn:hover {
+        background-color: var(--accent-hover);
+    }
+
+    .team-table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: var(--bg-secondary);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+    }
+
+    .team-table th {
+        padding: var(--spacing-md);
+        text-align: left;
+        background-color: var(--bg-tertiary);
+        color: var(--text-primary);
+        font-weight: 600;
+        font-size: 0.875rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .team-table td {
+        padding: var(--spacing-md);
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .team-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .team-table tr:hover td {
+        background-color: var(--bg-tertiary);
+    }
+
+    .team-role-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: var(--radius-sm);
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .team-role-badge.admin {
+        background-color: rgba(59, 130, 246, 0.15);
+        color: var(--accent);
+    }
+
+    .team-role-badge.member {
+        background-color: rgba(107, 114, 128, 0.15);
+        color: var(--text-secondary);
+    }
+
+    .team-channel-list {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .team-channel-item {
+        display: inline-block;
+        margin-right: var(--spacing-sm);
+        padding: 2px 6px;
+        background-color: var(--bg-tertiary);
+        border-radius: var(--radius-sm);
+    }
+
+    .team-actions {
+        display: flex;
+        gap: var(--spacing-xs);
+    }
+
+    .team-action-btn {
+        padding: 4px 8px;
+        background-color: transparent;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .team-action-btn:hover {
+        background-color: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .team-action-btn.delete:hover {
+        background-color: rgba(239, 68, 68, 0.1);
+        border-color: var(--error);
+        color: var(--error);
+    }
+
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background-color: var(--bg-secondary);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-lg);
+        width: 400px;
+        max-width: 90%;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .modal-header {
+        margin-bottom: var(--spacing-md);
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        color: var(--text-primary);
+        font-size: 1.125rem;
+    }
+
+    .modal-field {
+        margin-bottom: var(--spacing-md);
+    }
+
+    .modal-field-label {
+        display: block;
+        margin-bottom: var(--spacing-xs);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .modal-field-input {
+        width: 100%;
+        padding: var(--spacing-sm) var(--spacing-md);
+        background-color: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        transition: all 0.2s;
+    }
+
+    .modal-field-input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .modal-field-select {
+        width: 100%;
+        padding: var(--spacing-sm) var(--spacing-md);
+        background-color: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        transition: all 0.2s;
+    }
+
+    .modal-field-select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+        justify-content: flex-end;
+        margin-top: var(--spacing-lg);
+    }
+
+    .modal-btn {
+        padding: var(--spacing-sm) var(--spacing-md);
+        border-radius: var(--radius-sm);
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .modal-btn-cancel {
+        background-color: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+    }
+
+    .modal-btn-cancel:hover {
+        background-color: var(--border-hover);
+        color: var(--text-primary);
+    }
+
+    .modal-btn-primary {
+        background-color: var(--accent);
+        border: 1px solid var(--accent);
+        color: white;
+    }
+
+    .modal-btn-primary:hover {
+        background-color: var(--accent-hover);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: var(--spacing-xxl);
+        color: var(--text-muted);
+    }
+
+    .empty-state-text {
+        font-size: 0.875rem;
+        margin-top: var(--spacing-md);
+    }
+
+    .status-message {
+        padding: var(--spacing-sm) var(--spacing-md);
+        border-radius: var(--radius-sm);
+        margin-bottom: var(--spacing-md);
+        font-size: 0.875rem;
+        display: none;
+    }
+
+    .status-message.success {
+        background-color: rgba(16, 185, 129, 0.1);
+        border: 1px solid var(--success);
+        color: var(--success);
+        display: block;
+    }
+
+    .status-message.error {
+        background-color: rgba(239, 68, 68, 0.1);
+        border: 1px solid var(--error);
+        color: var(--error);
+        display: block;
+    }
+
+    .channel-binding-list {
+        margin-top: var(--spacing-sm);
+    }
+
+    .channel-binding-item {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .channel-binding-input {
+        flex: 1;
+        padding: var(--spacing-xs) var(--spacing-sm);
+        background-color: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .channel-binding-remove {
+        padding: 4px 8px;
+        background-color: transparent;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    .channel-binding-remove:hover {
+        background-color: rgba(239, 68, 68, 0.1);
+        border-color: var(--error);
+        color: var(--error);
+    }
+
+    .add-channel-btn {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        background-color: transparent;
+        border: 1px dashed var(--border-color);
+        border-radius: var(--radius-sm);
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        cursor: pointer;
+        width: 100%;
+        margin-top: var(--spacing-xs);
+    }
+
+    .add-channel-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="team-header">
+    <h2>Team Members</h2>
+    <button id="addMemberBtn" class="team-add-btn">Add Member</button>
+</div>
+
+<div id="statusMessage" class="status-message"></div>
+
+<table class="team-table">
+    <thead>
+        <tr>
+            <th>Nickname</th>
+            <th>Role</th>
+            <th>Channel Bindings</th>
+            <th>Joined</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="membersTableBody">
+        <tr>
+            <td colspan="5" class="empty-state">
+                <div>Loading...</div>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Add Member Modal -->
+<div id="addMemberModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add Team Member</h3>
+        </div>
+        <form id="addMemberForm">
+            <div class="modal-field">
+                <label class="modal-field-label">Nickname</label>
+                <input type="text" name="nickname" class="modal-field-input" required placeholder="Enter nickname">
+            </div>
+            <div class="modal-field">
+                <label class="modal-field-label">Role</label>
+                <select name="role" class="modal-field-select">
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="modal-field">
+                <label class="modal-field-label">Channel</label>
+                <input type="text" name="channel" class="modal-field-input" value="webui" placeholder="webui">
+            </div>
+            <div class="modal-field">
+                <label class="modal-field-label">Sender ID</label>
+                <input type="text" name="sender_id" class="modal-field-input" value="admin" placeholder="admin">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="modal-btn modal-btn-cancel" onclick="closeAddModal()">Cancel</button>
+                <button type="submit" class="modal-btn modal-btn-primary">Add Member</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Member Modal -->
+<div id="editMemberModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Member</h3>
+        </div>
+        <form id="editMemberForm">
+            <input type="hidden" name="original_nickname" id="editOriginalNickname">
+            <div class="modal-field">
+                <label class="modal-field-label">Nickname</label>
+                <input type="text" name="nickname" id="editNickname" class="modal-field-input" required>
+            </div>
+            <div class="modal-field">
+                <label class="modal-field-label">Role</label>
+                <select name="role" id="editRole" class="modal-field-select">
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <div class="modal-field">
+                <label class="modal-field-label">Channel Bindings</label>
+                <div id="channelBindingsList" class="channel-binding-list"></div>
+                <button type="button" class="add-channel-btn" onclick="addChannelBinding()">+ Add Channel</button>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="modal-btn modal-btn-cancel" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="modal-btn modal-btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    let currentMembers = [];
+
+    // Load members
+    async function loadMembers() {
+        try {
+            const response = await fetch('/api/team/members');
+            currentMembers = await response.json();
+            renderMembers();
+        } catch (error) {
+            showStatus('Failed to load members', 'error');
+        }
+    }
+
+    // Render members table
+    function renderMembers() {
+        const tbody = document.getElementById('membersTableBody');
+
+        if (currentMembers.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="empty-state">
+                        <div>No team members yet</div>
+                        <div class="empty-state-text">Click "Add Member" to get started</div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = currentMembers.map(member => `
+            <tr>
+                <td><strong>${escapeHtml(member.nickname)}</strong></td>
+                <td><span class="team-role-badge ${member.role}">${member.role}</span></td>
+                <td>
+                    ${Object.keys(member.channel_ids).length > 0
+                        ? Object.entries(member.channel_ids).map(([channel, senderId]) =>
+                            `<span class="team-channel-item">${escapeHtml(channel)}: ${escapeHtml(senderId)}</span>`
+                          ).join('')
+                        : '<span style="color: var(--text-muted)">None</span>'
+                    }
+                </td>
+                <td>${member.joined_at ? new Date(member.joined_at).toLocaleDateString() : '-'}</td>
+                <td>
+                    <div class="team-actions">
+                        <button class="team-action-btn" onclick="openEditModal('${escapeHtml(member.nickname)}')">Edit</button>
+                        <button class="team-action-btn delete" onclick="removeMember('${escapeHtml(member.nickname)}')">Remove</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // Add member
+    document.getElementById('addMemberBtn').addEventListener('click', () => {
+        document.getElementById('addMemberModal').classList.add('active');
+    });
+
+    function closeAddModal() {
+        document.getElementById('addMemberModal').classList.remove('active');
+        document.getElementById('addMemberForm').reset();
+    }
+
+    document.getElementById('addMemberForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = {
+            nickname: formData.get('nickname'),
+            role: formData.get('role'),
+            channel: formData.get('channel'),
+            sender_id: formData.get('sender_id')
+        };
+
+        try {
+            const response = await fetch('/api/team/members', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                showStatus('Member added successfully', 'success');
+                closeAddModal();
+                loadMembers();
+            } else {
+                const error = await response.json();
+                showStatus(`Failed to add member: ${error.detail}`, 'error');
+            }
+        } catch (error) {
+            showStatus('Failed to add member', 'error');
+        }
+    });
+
+    // Edit member
+    let currentEditingMember = null;
+
+    function openEditModal(nickname) {
+        const member = currentMembers.find(m => m.nickname === nickname);
+        if (!member) return;
+
+        currentEditingMember = member;
+        document.getElementById('editOriginalNickname').value = member.nickname;
+        document.getElementById('editNickname').value = member.nickname;
+        document.getElementById('editRole').value = member.role;
+
+        renderChannelBindings(member.channel_ids);
+        document.getElementById('editMemberModal').classList.add('active');
+    }
+
+    function closeEditModal() {
+        document.getElementById('editMemberModal').classList.remove('active');
+        currentEditingMember = null;
+    }
+
+    function renderChannelBindings(channelIds) {
+        const container = document.getElementById('channelBindingsList');
+        container.innerHTML = '';
+
+        Object.entries(channelIds).forEach(([channel, senderId]) => {
+            addChannelBindingRow(channel, senderId);
+        });
+
+        if (Object.keys(channelIds).length === 0) {
+            addChannelBindingRow();
+        }
+    }
+
+    function addChannelBindingRow(channel = '', senderId = '') {
+        const container = document.getElementById('channelBindingsList');
+        const row = document.createElement('div');
+        row.className = 'channel-binding-item';
+        row.innerHTML = `
+            <input type="text" class="channel-binding-input" placeholder="Channel" value="${escapeHtml(channel)}" data-field="channel">
+            <input type="text" class="channel-binding-input" placeholder="Sender ID" value="${escapeHtml(senderId)}" data-field="sender_id">
+            <button type="button" class="channel-binding-remove" onclick="this.parentElement.remove()">Remove</button>
+        `;
+        container.appendChild(row);
+    }
+
+    function addChannelBinding() {
+        addChannelBindingRow();
+    }
+
+    document.getElementById('editMemberForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const originalNickname = document.getElementById('editOriginalNickname').value;
+        const nickname = document.getElementById('editNickname').value;
+        const role = document.getElementById('editRole').value;
+
+        // Collect channel bindings
+        const channelIds = {};
+        document.querySelectorAll('#channelBindingsList .channel-binding-item').forEach(row => {
+            const channel = row.querySelector('[data-field="channel"]').value.trim();
+            const senderId = row.querySelector('[data-field="sender_id"]').value.trim();
+            if (channel && senderId) {
+                channelIds[channel] = senderId;
+            }
+        });
+
+        try {
+            const response = await fetch(`/api/team/members/${encodeURIComponent(originalNickname)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nickname, role, channel_ids: channelIds })
+            });
+
+            if (response.ok) {
+                showStatus('Member updated successfully', 'success');
+                closeEditModal();
+                loadMembers();
+            } else {
+                const error = await response.json();
+                showStatus(`Failed to update member: ${error.detail}`, 'error');
+            }
+        } catch (error) {
+            showStatus('Failed to update member', 'error');
+        }
+    });
+
+    // Remove member
+    async function removeMember(nickname) {
+        if (!confirm(`Are you sure you want to remove member "${nickname}"?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/team/members/${encodeURIComponent(nickname)}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                showStatus('Member removed successfully', 'success');
+                loadMembers();
+            } else {
+                const error = await response.json();
+                showStatus(`Failed to remove member: ${error.detail}`, 'error');
+            }
+        } catch (error) {
+            showStatus('Failed to remove member', 'error');
+        }
+    }
+
+    // Show status message
+    function showStatus(message, type) {
+        const statusEl = document.getElementById('statusMessage');
+        statusEl.textContent = message;
+        statusEl.className = `status-message ${type}`;
+
+        setTimeout(() => {
+            statusEl.className = 'status-message';
+        }, 3000);
+    }
+
+    // Escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Close modals on backdrop click
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+            }
+        });
+    });
+
+    // Load members on page load
+    loadMembers();
+</script>
+{% endblock %}
