@@ -631,6 +631,22 @@ def gateway(
         return response
     cron.on_job = on_cron_job
 
+    # Start WebUI if enabled
+    webui_server = None
+    if config.webui.enabled:
+        import uvicorn
+        from nanobot.webui.app import create_app
+
+        webui_app = create_app(bus, agent, config, team_manager)
+        webui_config = uvicorn.Config(
+            webui_app,
+            host=config.webui.host,
+            port=config.webui.port,
+            log_level="warning",
+        )
+        webui_server = uvicorn.Server(webui_config)
+        console.print(f"[green]✓[/green] WebUI will start on http://{config.webui.host}:{config.webui.port}")
+
     # Create channel manager
     channels = ChannelManager(config, bus, team_manager=team_manager)
 
@@ -726,10 +742,13 @@ def gateway(
         try:
             await cron.start()
             await heartbeat.start()
-            await asyncio.gather(
-                agent.run(),
-                channels.start_all(),
-            )
+
+            # Gather tasks to run concurrently
+            tasks = [agent.run(), channels.start_all()]
+            if webui_server:
+                tasks.append(webui_server.serve())
+
+            await asyncio.gather(*tasks)
         except KeyboardInterrupt:
             console.print("\nShutting down...")
         except Exception:
@@ -742,6 +761,8 @@ def gateway(
             cron.stop()
             agent.stop()
             await channels.stop_all()
+            if webui_server:
+                webui_server.should_exit = True
 
     asyncio.run(run())
 
