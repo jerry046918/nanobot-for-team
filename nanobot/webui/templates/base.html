@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}nanobot{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-brand">🐈 nanobot</div>
+        <div class="nav-links">
+            <a href="/chat">Chat</a>
+            <a href="/config">Config</a>
+            <a href="/skills">Skills</a>
+            <a href="/team">Team</a>
+            <form action="/api/auth/logout" method="post" style="display:inline">
+                <button type="submit" class="nav-link-btn">Logout</button>
+            </form>
+        </div>
+    </nav>
+    <main class="main">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
