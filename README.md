@@ -1600,6 +1600,44 @@ nanobot gateway --config ~/.nanobot-telegram/config.json --workspace /tmp/nanobo
 - `--workspace` overrides the workspace defined in the config file
 - Cron jobs and runtime media/state are derived from the config directory
 
+## WebUI (Admin Dashboard)
+
+nanobot includes a built-in web admin dashboard for managing configuration, chatting with the agent, and managing team members.
+
+### Quick Start
+
+```bash
+# Start the gateway
+nanobot gateway
+
+# In another terminal, generate a login URL
+nanobot webui
+```
+
+This will print a URL like `http://localhost:18791/?token=xxx`. Open it in your browser to access the dashboard.
+
+### Features
+
+- **Chat**: Real-time conversation with the agent via WebSocket
+- **Config**: Visual configuration management for all settings
+- **Skills**: View, create, and import skills (ZIP, folder, GitHub)
+- **Team**: Manage team members and channel bindings
+
+### Configuration
+
+Add to your `config.json`:
+
+```json
+{
+  "webui": {
+    "enabled": true,
+    "host": "0.0.0.0",
+    "port": 18791,
+    "token_ttl_hours": 24
+  }
+}
+```
+
 ## 💻 CLI Reference
 
 | Command | Description |
