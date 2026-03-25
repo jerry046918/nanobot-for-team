@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Login - nanobot{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-card">
+        <h2>🐈 nanobot WebUI</h2>
+        <p style="color: var(--text-secondary); margin: 1rem 0;">
+            Run <code style="background: var(--bg-tertiary); padding: 0.2rem 0.5rem; border-radius: 4px;">nanobot webui</code> in your terminal to get a login URL.
+        </p>
+        {% if error %}
+        <p class="login-error">{{ error }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
