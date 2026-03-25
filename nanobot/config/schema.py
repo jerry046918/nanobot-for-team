@@ -128,6 +128,15 @@ class WebToolsConfig(Base):
     search: WebSearchConfig = Field(default_factory=WebSearchConfig)
 
 
+class WebUIConfig(Base):
+    """WebUI configuration."""
+
+    enabled: bool = True
+    host: str = "0.0.0.0"
+    port: int = 18791
+    token_ttl_hours: int = 24
+
+
 class ExecToolConfig(Base):
     """Shell exec tool configuration."""
 
@@ -165,6 +174,7 @@ class Config(BaseSettings):
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     team: TeamConfig = Field(default_factory=TeamConfig)
+    webui: WebUIConfig = Field(default_factory=WebUIConfig)
 
     @property
     def workspace_path(self) -> Path:
