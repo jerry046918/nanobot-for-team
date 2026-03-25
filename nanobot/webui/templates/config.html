@@ -463,25 +463,29 @@
             const response = await fetch('/api/config');
             const config = await response.json();
 
-            // Populate form
-            Object.keys(config).forEach(section => {
-                if (typeof config[section] === 'object') {
-                    Object.keys(config[section]).forEach(key => {
-                        const value = config[section][key];
-                        if (typeof value === 'object') {
-                            Object.keys(value).forEach(subkey => {
-                                const input = document.querySelector(`[name="${section}.${key}.${subkey}"]`);
-                                if (input) {
-                                    input.value = value[subkey];
-                                }
-                            });
-                        } else {
-                            const input = document.querySelector(`[name="${section}.${key}"]`);
-                            if (input) {
-                                input.value = value;
-                            }
-                        }
-                    });
+            // Populate form - iterate over all form inputs
+            document.querySelectorAll('#configForm [name]').forEach(input => {
+                const parts = input.name.split('.');
+                let value = config;
+
+                // Traverse the config object using the field name parts
+                for (const part of parts) {
+                    if (value && typeof value === 'object') {
+                        value = value[part];
+                    } else {
+                        value = null;
+                        break;
+                    }
+                }
+
+                // Set the input value if found
+                if (value !== null && value !== undefined) {
+                    // Handle boolean values for select elements
+                    if (input.tagName === 'SELECT' && typeof value === 'boolean') {
+                        input.value = value.toString();
+                    } else {
+                        input.value = value;
+                    }
                 }
             });
         } catch (error) {
