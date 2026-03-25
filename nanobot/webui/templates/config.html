@@ -1,0 +1,568 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration - nanobot{% endblock %}
+
+{% block head %}
+<style>
+    .config-layout {
+        display: flex;
+        gap: var(--spacing-lg);
+        margin-top: var(--spacing-lg);
+    }
+
+    .config-sidebar {
+        width: 200px;
+        flex-shrink: 0;
+    }
+
+    .config-nav {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+
+    .config-nav-item {
+        padding: var(--spacing-sm) var(--spacing-md);
+        background-color: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: left;
+        font-size: 0.875rem;
+    }
+
+    .config-nav-item:hover {
+        background-color: var(--border-hover);
+        color: var(--text-primary);
+    }
+
+    .config-nav-item.active {
+        background-color: var(--accent);
+        border-color: var(--accent);
+        color: white;
+    }
+
+    .config-main {
+        flex: 1;
+    }
+
+    .config-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .config-actions {
+        display: flex;
+        gap: var(--spacing-sm);
+    }
+
+    .config-section {
+        display: none;
+    }
+
+    .config-section.active {
+        display: block;
+    }
+
+    .config-field {
+        margin-bottom: var(--spacing-md);
+    }
+
+    .config-field-label {
+        display: block;
+        margin-bottom: var(--spacing-xs);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .config-field-input {
+        width: 100%;
+        padding: var(--spacing-sm) var(--spacing-md);
+        background-color: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        transition: all 0.2s;
+    }
+
+    .config-field-input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .config-field-description {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: var(--spacing-xs);
+    }
+
+    .config-subsection {
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .config-subsection-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: var(--spacing-md);
+        padding-bottom: var(--spacing-sm);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .status-message {
+        padding: var(--spacing-sm) var(--spacing-md);
+        border-radius: var(--radius-sm);
+        margin-bottom: var(--spacing-md);
+        font-size: 0.875rem;
+        display: none;
+    }
+
+    .status-message.success {
+        background-color: rgba(16, 185, 129, 0.1);
+        border: 1px solid var(--success);
+        color: var(--success);
+        display: block;
+    }
+
+    .status-message.error {
+        background-color: rgba(239, 68, 68, 0.1);
+        border: 1px solid var(--error);
+        color: var(--error);
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="config-layout">
+    <div class="config-sidebar">
+        <nav class="config-nav">
+            <button class="config-nav-item active" data-section="agents">Agents</button>
+            <button class="config-nav-item" data-section="providers">Providers</button>
+            <button class="config-nav-item" data-section="channels">Channels</button>
+            <button class="config-nav-item" data-section="tools">Tools</button>
+            <button class="config-nav-item" data-section="gateway">Gateway</button>
+            <button class="config-nav-item" data-section="team">Team</button>
+            <button class="config-nav-item" data-section="webui">WebUI</button>
+        </nav>
+    </div>
+
+    <div class="config-main">
+        <div class="config-header">
+            <h2>Configuration</h2>
+            <div class="config-actions">
+                <button id="reloadBtn" class="form-btn form-btn-secondary">Reload</button>
+                <button id="saveBtn" class="form-btn">Save</button>
+            </div>
+        </div>
+
+        <div id="statusMessage" class="status-message"></div>
+
+        <form id="configForm">
+            <!-- Agents Section -->
+            <div class="config-section active" data-section="agents">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Agent Defaults</h3>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-field">
+                            <label class="config-field-label">Workspace</label>
+                            <input type="text" name="agents.defaults.workspace" class="config-field-input" placeholder="~/.nanobot/workspace">
+                            <div class="config-field-description">Default workspace directory for agents</div>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Model</label>
+                            <input type="text" name="agents.defaults.model" class="config-field-input" placeholder="anthropic/claude-opus-4-5">
+                            <div class="config-field-description">Default model to use</div>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Provider</label>
+                            <input type="text" name="agents.defaults.provider" class="config-field-input" placeholder="auto">
+                            <div class="config-field-description">Provider name or "auto" for auto-detection</div>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Max Tokens</label>
+                            <input type="number" name="agents.defaults.max_tokens" class="config-field-input" placeholder="8192">
+                            <div class="config-field-description">Maximum tokens per response</div>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Context Window</label>
+                            <input type="number" name="agents.defaults.context_window_tokens" class="config-field-input" placeholder="65536">
+                            <div class="config-field-description">Context window size in tokens</div>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Temperature</label>
+                            <input type="number" step="0.1" name="agents.defaults.temperature" class="config-field-input" placeholder="0.1">
+                            <div class="config-field-description">Sampling temperature (0.0 - 1.0)</div>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Max Tool Iterations</label>
+                            <input type="number" name="agents.defaults.max_tool_iterations" class="config-field-input" placeholder="40">
+                            <div class="config-field-description">Maximum number of tool iterations</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Providers Section -->
+            <div class="config-section" data-section="providers">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">LLM Providers</h3>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-subsection-title">Anthropic</div>
+                        <div class="config-field">
+                            <label class="config-field-label">API Key</label>
+                            <input type="password" name="providers.anthropic.api_key" class="config-field-input">
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">API Base</label>
+                            <input type="text" name="providers.anthropic.api_base" class="config-field-input">
+                        </div>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-subsection-title">OpenAI</div>
+                        <div class="config-field">
+                            <label class="config-field-label">API Key</label>
+                            <input type="password" name="providers.openai.api_key" class="config-field-input">
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">API Base</label>
+                            <input type="text" name="providers.openai.api_base" class="config-field-input">
+                        </div>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-subsection-title">OpenRouter</div>
+                        <div class="config-field">
+                            <label class="config-field-label">API Key</label>
+                            <input type="password" name="providers.openrouter.api_key" class="config-field-input">
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">API Base</label>
+                            <input type="text" name="providers.openrouter.api_base" class="config-field-input">
+                        </div>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-subsection-title">Custom</div>
+                        <div class="config-field">
+                            <label class="config-field-label">API Key</label>
+                            <input type="password" name="providers.custom.api_key" class="config-field-input">
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">API Base</label>
+                            <input type="text" name="providers.custom.api_base" class="config-field-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Channels Section -->
+            <div class="config-section" data-section="channels">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Channels</h3>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-field">
+                            <label class="config-field-label">Send Progress</label>
+                            <select name="channels.send_progress" class="config-field-input">
+                                <option value="true">Enabled</option>
+                                <option value="false">Disabled</option>
+                            </select>
+                            <div class="config-field-description">Stream agent's text progress to the channel</div>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Send Tool Hints</label>
+                            <select name="channels.send_tool_hints" class="config-field-input">
+                                <option value="true">Enabled</option>
+                                <option value="false">Disabled</option>
+                            </select>
+                            <div class="config-field-description">Stream tool-call hints (e.g. read_file(...))</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tools Section -->
+            <div class="config-section" data-section="tools">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Tools</h3>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-subsection-title">Web Tools</div>
+                        <div class="config-field">
+                            <label class="config-field-label">Proxy</label>
+                            <input type="text" name="tools.web.proxy" class="config-field-input" placeholder="http://127.0.0.1:7890">
+                            <div class="config-field-description">HTTP/SOCKS5 proxy URL</div>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Search Provider</label>
+                            <select name="tools.web.search.provider" class="config-field-input">
+                                <option value="brave">Brave</option>
+                                <option value="tavily">Tavily</option>
+                                <option value="duckduckgo">DuckDuckGo</option>
+                                <option value="searxng">SearXNG</option>
+                                <option value="jina">Jina</option>
+                            </select>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Search API Key</label>
+                            <input type="password" name="tools.web.search.api_key" class="config-field-input">
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Max Results</label>
+                            <input type="number" name="tools.web.search.max_results" class="config-field-input" placeholder="5">
+                        </div>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-subsection-title">Exec Tool</div>
+                        <div class="config-field">
+                            <label class="config-field-label">Enable</label>
+                            <select name="tools.exec.enable" class="config-field-input">
+                                <option value="true">Enabled</option>
+                                <option value="false">Disabled</option>
+                            </select>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Timeout (seconds)</label>
+                            <input type="number" name="tools.exec.timeout" class="config-field-input" placeholder="60">
+                        </div>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-subsection-title">General</div>
+                        <div class="config-field">
+                            <label class="config-field-label">Restrict to Workspace</label>
+                            <select name="tools.restrict_to_workspace" class="config-field-input">
+                                <option value="true">Enabled</option>
+                                <option value="false">Disabled</option>
+                            </select>
+                            <div class="config-field-description">Restrict all tool access to workspace directory</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gateway Section -->
+            <div class="config-section" data-section="gateway">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Gateway</h3>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-field">
+                            <label class="config-field-label">Host</label>
+                            <input type="text" name="gateway.host" class="config-field-input" placeholder="0.0.0.0">
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Port</label>
+                            <input type="number" name="gateway.port" class="config-field-input" placeholder="18790">
+                        </div>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-subsection-title">Heartbeat</div>
+                        <div class="config-field">
+                            <label class="config-field-label">Enabled</label>
+                            <select name="gateway.heartbeat.enabled" class="config-field-input">
+                                <option value="true">Enabled</option>
+                                <option value="false">Disabled</option>
+                            </select>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Interval (seconds)</label>
+                            <input type="number" name="gateway.heartbeat.interval_s" class="config-field-input" placeholder="1800">
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Keep Recent Messages</label>
+                            <input type="number" name="gateway.heartbeat.keep_recent_messages" class="config-field-input" placeholder="8">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Team Section -->
+            <div class="config-section" data-section="team">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Team Mode</h3>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-field">
+                            <label class="config-field-label">Enabled</label>
+                            <select name="team.enabled" class="config-field-input">
+                                <option value="true">Enabled</option>
+                                <option value="false">Disabled</option>
+                            </select>
+                            <div class="config-field-description">Enable team mode (multi-user support with per-member identity)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WebUI Section -->
+            <div class="config-section" data-section="webui">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">WebUI</h3>
+                    </div>
+                    <div class="card-subsection">
+                        <div class="config-field">
+                            <label class="config-field-label">Enabled</label>
+                            <select name="webui.enabled" class="config-field-input">
+                                <option value="true">Enabled</option>
+                                <option value="false">Disabled</option>
+                            </select>
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Host</label>
+                            <input type="text" name="webui.host" class="config-field-input" placeholder="0.0.0.0">
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Port</label>
+                            <input type="number" name="webui.port" class="config-field-input" placeholder="18791">
+                        </div>
+                        <div class="config-field">
+                            <label class="config-field-label">Token TTL (hours)</label>
+                            <input type="number" name="webui.token_ttl_hours" class="config-field-input" placeholder="24">
+                            <div class="config-field-description">Session token time-to-live</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Tab navigation
+    document.querySelectorAll('.config-nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            // Update nav
+            document.querySelectorAll('.config-nav-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            // Update sections
+            const section = item.dataset.section;
+            document.querySelectorAll('.config-section').forEach(s => s.classList.remove('active'));
+            document.querySelector(`.config-section[data-section="${section}"]`).classList.add('active');
+        });
+    });
+
+    // Load config
+    async function loadConfig() {
+        try {
+            const response = await fetch('/api/config');
+            const config = await response.json();
+
+            // Populate form
+            Object.keys(config).forEach(section => {
+                if (typeof config[section] === 'object') {
+                    Object.keys(config[section]).forEach(key => {
+                        const value = config[section][key];
+                        if (typeof value === 'object') {
+                            Object.keys(value).forEach(subkey => {
+                                const input = document.querySelector(`[name="${section}.${key}.${subkey}"]`);
+                                if (input) {
+                                    input.value = value[subkey];
+                                }
+                            });
+                        } else {
+                            const input = document.querySelector(`[name="${section}.${key}"]`);
+                            if (input) {
+                                input.value = value;
+                            }
+                        }
+                    });
+                }
+            });
+        } catch (error) {
+            showStatus('Failed to load configuration', 'error');
+        }
+    }
+
+    // Save config
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+        const formData = new FormData(document.getElementById('configForm'));
+        const config = {};
+
+        formData.forEach((value, name) => {
+            const parts = name.split('.');
+            let current = config;
+
+            parts.forEach((part, index) => {
+                if (index === parts.length - 1) {
+                    // Convert string values to appropriate types
+                    if (value === 'true') value = true;
+                    else if (value === 'false') value = false;
+                    else if (!isNaN(value) && value !== '') value = Number(value);
+
+                    current[part] = value;
+                } else {
+                    current[part] = current[part] || {};
+                    current = current[part];
+                }
+            });
+        });
+
+        try {
+            const response = await fetch('/api/config', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            });
+
+            if (response.ok) {
+                showStatus('Configuration saved successfully', 'success');
+            } else {
+                const error = await response.json();
+                showStatus(`Failed to save: ${error.detail?.error || 'Unknown error'}`, 'error');
+            }
+        } catch (error) {
+            showStatus('Failed to save configuration', 'error');
+        }
+    });
+
+    // Reload config
+    document.getElementById('reloadBtn').addEventListener('click', async () => {
+        try {
+            const response = await fetch('/api/config/reload', {
+                method: 'POST'
+            });
+
+            if (response.ok) {
+                await loadConfig();
+                showStatus('Configuration reloaded successfully', 'success');
+            } else {
+                showStatus('Failed to reload configuration', 'error');
+            }
+        } catch (error) {
+            showStatus('Failed to reload configuration', 'error');
+        }
+    });
+
+    // Show status message
+    function showStatus(message, type) {
+        const statusEl = document.getElementById('statusMessage');
+        statusEl.textContent = message;
+        statusEl.className = `status-message ${type}`;
+
+        setTimeout(() => {
+            statusEl.className = 'status-message';
+        }, 3000);
+    }
+
+    // Load config on page load
+    loadConfig();
+</script>
+{% endblock %}

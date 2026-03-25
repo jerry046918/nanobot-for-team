@@ -575,3 +575,10 @@ code {
 
 .cursor-pointer { cursor: pointer; }
 .select-none { user-select: none; }
+
+.card-subsection {
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-sm);
+}
