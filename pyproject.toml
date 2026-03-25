@@ -48,6 +48,10 @@ dependencies = [
     "chardet>=3.0.2,<6.0.0",
     "openai>=2.8.0",
     "tiktoken>=0.12.0,<1.0.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "bcrypt>=4.2.0",
+    "python-multipart>=0.0.18",
 ]
 
 [project.optional-dependencies]
