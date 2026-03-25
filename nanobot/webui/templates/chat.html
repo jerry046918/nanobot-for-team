@@ -296,6 +296,8 @@
 
     let ws = null;
     let currentSession = null;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
 
     // Get session ID from cookie
     function getSessionId() {
@@ -331,8 +333,15 @@
         ws.onclose = () => {
             setStatus('disconnected', 'Disconnected');
             sendButton.disabled = true;
-            // Attempt to reconnect after 3 seconds
-            setTimeout(connect, 3000);
+
+            // Attempt to reconnect with exponential backoff
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+                setTimeout(connect, delay);
+                reconnectAttempts++;
+            } else {
+                setStatus('disconnected', 'Max reconnection attempts reached');
+            }
         };
 
         ws.onerror = () => {
@@ -424,6 +433,13 @@
     // Initial connection
     connect();
 
+    // Reset reconnect attempts on successful connection
+    ws.onopen = () => {
+        setStatus('connected', 'Connected');
+        sendButton.disabled = false;
+        reconnectAttempts = 0;
+    };
+
     // Load sessions periodically
     function loadSessions() {
         fetch('/api/sessions')
@@ -448,7 +464,7 @@
     }
 
     // Load session history
-    function loadSessionHistory(key) {
+    function loadSessionHistory(key, event) {
         currentSession = key;
         fetch(`/api/sessions/${encodeURIComponent(key)}/history`)
             .then(response => response.json())
@@ -470,7 +486,9 @@
                 document.querySelectorAll('.chat-session-item').forEach(item => {
                     item.classList.remove('active');
                 });
-                event.target.closest('.chat-session-item').classList.add('active');
+                if (event) {
+                    event.target.closest('.chat-session-item').classList.add('active');
+                }
             })
             .catch(error => console.error('Failed to load session history:', error));
     }

@@ -31,6 +31,14 @@ async def get_history(key: str, request: Request, session_id: str = Depends(requ
 @router.websocket("/ws/chat")
 async def websocket_chat(websocket: WebSocket):
     """WebSocket endpoint for real-time chat communication."""
+    # Check Origin header for security
+    origin = websocket.headers.get("origin")
+    host = websocket.headers.get("host", "")
+    expected_origin = f"{websocket.url.scheme}://{host}"
+    if origin and origin != expected_origin:
+        await websocket.close(code=4003, reason="Invalid Origin")
+        return
+
     await websocket.accept()
     # Validate session from query param or cookie
     session_id = websocket.query_params.get("session_id")
