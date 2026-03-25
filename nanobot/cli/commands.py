@@ -1267,5 +1267,35 @@ def _login_github_copilot() -> None:
         raise typer.Exit(1)
 
 
+@app.command()
+def webui(
+    no_open: bool = typer.Option(False, "--no-open", help="Don't open browser"),
+    revoke_all: bool = typer.Option(False, "--revoke-all", help="Revoke all tokens"),
+):
+    """Generate WebUI login URL or manage tokens."""
+    from nanobot.config.loader import load_config
+    from nanobot.webui.auth import TokenManager
+
+    config = load_config()
+    workspace = config.workspace_path
+    tm = TokenManager(workspace, config.webui.token_ttl_hours)
+
+    if revoke_all:
+        count = tm.revoke_all()
+        console.print(f"[green]✓[/green] Revoked {count} token(s)")
+        return
+
+    # Generate new token
+    token = tm.generate_token()
+    url = f"http://{config.webui.host}:{config.webui.port}/?token={token}"
+
+    console.print(f"\n[green]WebUI URL (expires in {config.webui.token_ttl_hours}h):[/green]")
+    console.print(f"[cyan]{url}[/cyan]\n")
+
+    if not no_open:
+        import webbrowser
+        webbrowser.open(url)
+
+
 if __name__ == "__main__":
     app()

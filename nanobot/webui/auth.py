@@ -70,6 +70,7 @@ class TokenManager:
 
     def _ensure_file(self) -> None:
         if not self.tokens_file.exists():
+            self.workspace.mkdir(parents=True, exist_ok=True)
             self._save_tokens([])
 
     def _load_tokens(self) -> list[dict[str, Any]]:
