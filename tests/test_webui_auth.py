@@ -73,3 +73,12 @@ def test_token_persistence(tmp_path):
 
     tm2 = TokenManager(tmp_path)
     assert tm2.validate_token(token) is True
+
+
+def test_session_manager():
+    from nanobot.webui.auth import SessionManager
+    sm = SessionManager()
+    session_id = sm.create_session("test_token_hash")
+    assert sm.validate_session(session_id) is True
+    sm.destroy_session(session_id)
+    assert sm.validate_session(session_id) is False

@@ -12,6 +12,37 @@ from loguru import logger
 TOKENS_FILE = "webui_tokens.json"
 
 
+class SessionManager:
+    """Manages server-side sessions for authenticated users."""
+
+    def __init__(self):
+        self._sessions: dict[str, dict[str, Any]] = {}
+
+    def create_session(self, token_hash: str) -> str:
+        """Create a new session and return session ID."""
+        session_id = secrets.token_urlsafe(32)
+        self._sessions[session_id] = {
+            "token_hash": token_hash,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        return session_id
+
+    def validate_session(self, session_id: str) -> bool:
+        """Check if session exists and is valid."""
+        return session_id in self._sessions
+
+    def get_session(self, session_id: str) -> dict[str, Any] | None:
+        """Get session data."""
+        return self._sessions.get(session_id)
+
+    def destroy_session(self, session_id: str) -> bool:
+        """Destroy a session. Returns True if existed."""
+        if session_id in self._sessions:
+            del self._sessions[session_id]
+            return True
+        return False
+
+
 class TokenManager:
     """Manages WebUI authentication tokens."""
 
