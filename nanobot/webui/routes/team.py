@@ -8,14 +8,42 @@ from nanobot.webui.routes.auth import require_auth
 router = APIRouter(tags=["team"])
 
 
+def _get_team_manager(request: Request):
+    """Get or lazily create a TeamManager when team mode is enabled."""
+    tm = request.app.state.team_manager
+    if tm is not None:
+        return tm
+
+    # Check if team mode is enabled in the current config
+    config = request.app.state.config
+    if config.team.enabled:
+        from nanobot.team.manager import TeamManager
+        tm = TeamManager(request.app.state.workspace)
+        request.app.state.team_manager = tm
+        return tm
+
+    return None
+
+
 @router.get("/team", response_class=HTMLResponse)
 async def team_page(request: Request, session_id: str = Depends(require_auth)):
     return request.app.state.templates.TemplateResponse("team.html", {"request": request})
 
 
+@router.get("/api/team/status")
+async def team_status(request: Request, session_id: str = Depends(require_auth)):
+    """Check if team mode is enabled and return status."""
+    config = request.app.state.config
+    tm = _get_team_manager(request)
+    return {
+        "enabled": config.team.enabled,
+        "member_count": len(tm.list_members()) if tm else 0,
+    }
+
+
 @router.get("/api/team/members")
 async def list_members(request: Request, session_id: str = Depends(require_auth)):
-    tm = request.app.state.team_manager
+    tm = _get_team_manager(request)
     if not tm:
         return []
     return [
@@ -36,7 +64,7 @@ async def add_member(
     data: dict,
     session_id: str = Depends(require_auth)
 ):
-    tm = request.app.state.team_manager
+    tm = _get_team_manager(request)
     if not tm:
         raise HTTPException(status_code=400, detail="Team mode not enabled")
 
@@ -60,7 +88,7 @@ async def update_member(
     data: dict,
     session_id: str = Depends(require_auth)
 ):
-    tm = request.app.state.team_manager
+    tm = _get_team_manager(request)
     if not tm:
         raise HTTPException(status_code=400, detail="Team mode not enabled")
 
@@ -83,7 +111,7 @@ async def remove_member(
     request: Request,
     session_id: str = Depends(require_auth)
 ):
-    tm = request.app.state.team_manager
+    tm = _get_team_manager(request)
     if not tm:
         raise HTTPException(status_code=400, detail="Team mode not enabled")
 

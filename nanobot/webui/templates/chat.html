@@ -299,10 +299,9 @@
     let reconnectAttempts = 0;
     const MAX_RECONNECT_ATTEMPTS = 5;
 
-    // Get session ID from cookie
+    // Get session ID from template variable (cookie is HttpOnly, JS can't read it)
     function getSessionId() {
-        const match = document.cookie.match(/session_id=([^;]+)/);
-        return match ? match[1] : null;
+        return {{ ws_session_id | tojson }};
     }
 
     // Connect to WebSocket
@@ -356,15 +355,64 @@
         statusElement.textContent = text;
     }
 
+    // Streaming state
+    let streamingMessageEl = null;
+    let streamingContent = '';
+
     // Handle incoming message
     function handleMessage(data) {
-        if (data.type === 'text') {
-            addMessage('assistant', data.content);
+        if (data.type === 'progress') {
+            // Show tool call progress
+            if (data.tool_hint) {
+                showProgress(data.content);
+            }
+        } else if (data.type === 'stream') {
+            // Streaming text delta — append to current message
+            if (!streamingMessageEl) {
+                streamingMessageEl = createMessageEl('assistant', '');
+                streamingContent = '';
+            }
+            streamingContent += data.content;
+            updateMessageContent(streamingMessageEl, streamingContent);
+        } else if (data.type === 'stream_end') {
+            // Stream finished — if resuming, agent will make more tool calls
+            if (!data.resuming && streamingMessageEl) {
+                streamingMessageEl = null;
+                streamingContent = '';
+            }
+            hideProgress();
+        } else if (data.type === 'text') {
+            // Final complete response
+            hideProgress();
+            if (streamingMessageEl && !data.content) {
+                // Response was already streamed
+                streamingMessageEl = null;
+                streamingContent = '';
+            } else if (data.content) {
+                // Non-streamed final response
+                streamingMessageEl = null;
+                streamingContent = '';
+                addMessage('assistant', data.content);
+            }
+            // Refresh session list after response
+            loadSessions();
+        } else if (data.type === 'error') {
+            hideProgress();
+            streamingMessageEl = null;
+            streamingContent = '';
+            addMessage('system', data.content);
         }
     }
 
     // Add message to chat
     function addMessage(role, content) {
+        const messageDiv = createMessageEl(role, content);
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // Create a message element
+    function createMessageEl(role, content) {
         // Remove empty state if present
         const emptyState = messagesContainer.querySelector('.empty-state');
         if (emptyState) {
@@ -376,7 +424,7 @@
 
         const avatar = document.createElement('div');
         avatar.className = 'chat-message-avatar';
-        avatar.textContent = role === 'user' ? 'U' : 'A';
+        avatar.textContent = role === 'user' ? 'U' : role === 'system' ? '!' : 'A';
 
         const contentDiv = document.createElement('div');
         contentDiv.className = 'chat-message-content';
@@ -391,8 +439,43 @@
         messageDiv.appendChild(contentDiv);
         messagesContainer.appendChild(messageDiv);
 
-        // Scroll to bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        return messageDiv;
+    }
+
+    // Update streaming message content
+    function updateMessageContent(messageDiv, content) {
+        const contentDiv = messageDiv.querySelector('.chat-message-content');
+        if (contentDiv) {
+            const timeDiv = contentDiv.querySelector('.chat-message-time');
+            contentDiv.textContent = content;
+            if (timeDiv) contentDiv.appendChild(timeDiv);
+        }
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // Progress indicator
+    function showProgress(text) {
+        let el = document.getElementById('chat-progress');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'chat-progress';
+            el.className = 'chat-message assistant';
+            el.innerHTML = `
+                <div class="chat-message-avatar">A</div>
+                <div class="chat-message-content" style="color: var(--text-muted); font-style: italic;">
+                    <span class="progress-text"></span>
+                </div>
+            `;
+            messagesContainer.appendChild(el);
+        }
+        el.querySelector('.progress-text').textContent = text;
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function hideProgress() {
+        const el = document.getElementById('chat-progress');
+        if (el) el.remove();
     }
 
     // Send message
@@ -449,6 +532,7 @@
                 sessions.forEach(session => {
                     const item = document.createElement('div');
                     item.className = 'chat-session-item';
+                    item.dataset.key = session.key;
                     if (session.key === currentSession) {
                         item.classList.add('active');
                     }
@@ -464,7 +548,7 @@
     }
 
     // Load session history
-    function loadSessionHistory(key, event) {
+    function loadSessionHistory(key) {
         currentSession = key;
         fetch(`/api/sessions/${encodeURIComponent(key)}/history`)
             .then(response => response.json())
@@ -479,16 +563,15 @@
                     `;
                 } else {
                     messages.forEach(msg => {
-                        addMessage(msg.role, msg.content);
+                        if (msg.content) {
+                            addMessage(msg.role, msg.content);
+                        }
                     });
                 }
                 // Update active session in sidebar
                 document.querySelectorAll('.chat-session-item').forEach(item => {
-                    item.classList.remove('active');
+                    item.classList.toggle('active', item.dataset.key === key);
                 });
-                if (event) {
-                    event.target.closest('.chat-session-item').classList.add('active');
-                }
             })
             .catch(error => console.error('Failed to load session history:', error));
     }

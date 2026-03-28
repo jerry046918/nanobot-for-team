@@ -13,10 +13,38 @@ TOKENS_FILE = "webui_tokens.json"
 
 
 class SessionManager:
-    """Manages server-side sessions for authenticated users."""
+    """Manages server-side sessions for authenticated users.
 
-    def __init__(self):
+    Sessions are persisted to disk so they survive gateway restarts.
+    """
+
+    SESSIONS_FILE = "webui_sessions.json"
+
+    def __init__(self, workspace: Path | None = None):
         self._sessions: dict[str, dict[str, Any]] = {}
+        self._persist_path = workspace / self.SESSIONS_FILE if workspace else None
+        self._load()
+
+    def _load(self) -> None:
+        if not self._persist_path or not self._persist_path.exists():
+            return
+        try:
+            data = json.loads(self._persist_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                self._sessions = data
+        except Exception:
+            pass
+
+    def _save(self) -> None:
+        if not self._persist_path:
+            return
+        try:
+            self._persist_path.write_text(
+                json.dumps(self._sessions, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
 
     def create_session(self, token_hash: str) -> str:
         """Create a new session and return session ID."""
@@ -25,6 +53,7 @@ class SessionManager:
             "token_hash": token_hash,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
+        self._save()
         return session_id
 
     def validate_session(self, session_id: str) -> bool:
@@ -44,6 +73,7 @@ class SessionManager:
         """Destroy a session. Returns True if existed."""
         if session_id in self._sessions:
             del self._sessions[session_id]
+            self._save()
             return True
         return False
 
@@ -56,6 +86,8 @@ class SessionManager:
         ]
         for sid in expired:
             del self._sessions[sid]
+        if expired:
+            self._save()
         return len(expired)
 
 

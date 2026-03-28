@@ -33,7 +33,7 @@ def create_app(
     app.state.team_manager = team_manager
     app.state.workspace = workspace
     app.state.token_manager = TokenManager(workspace, config.webui.token_ttl_hours)
-    app.state.session_manager = SessionManager()
+    app.state.session_manager = SessionManager(workspace)
 
     # Static files
     static_dir = Path(__file__).parent / "static"
@@ -59,7 +59,7 @@ def create_app(
             if request.app.state.token_manager.validate_token(token):
                 session_id = request.app.state.session_manager.create_session(token)
                 response = templates.TemplateResponse(
-                    "chat.html", {"request": request}
+                    "chat.html", {"request": request, "ws_session_id": session_id}
                 )
                 response.set_cookie(
                     key="session_id",
@@ -73,10 +73,12 @@ def create_app(
                     "login.html", {"request": request, "error": "Invalid or expired token"}
                 )
 
-        # Check existing session
+        # Check existing session - pass session_id to template for WS auth
         session_id = request.cookies.get("session_id")
         if session_id and request.app.state.session_manager.validate_session(session_id):
-            return templates.TemplateResponse("chat.html", {"request": request})
+            return templates.TemplateResponse(
+                "chat.html", {"request": request, "ws_session_id": session_id}
+            )
 
         return templates.TemplateResponse("login.html", {"request": request})
 

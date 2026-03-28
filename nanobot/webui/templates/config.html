@@ -137,6 +137,45 @@
         color: var(--error);
         display: block;
     }
+
+    .restart-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+        background-color: rgba(245, 158, 11, 0.1);
+        border: 1px solid var(--warning);
+        border-radius: var(--radius-md);
+    }
+
+    .restart-banner-text {
+        color: var(--warning);
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .restart-banner-btn {
+        padding: var(--spacing-sm) var(--spacing-md);
+        background-color: var(--warning);
+        color: white;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 500;
+        white-space: nowrap;
+        transition: opacity 0.2s;
+    }
+
+    .restart-banner-btn:hover {
+        opacity: 0.9;
+    }
+
+    .restart-banner-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 </style>
 {% endblock %}
 
@@ -164,6 +203,14 @@
         </div>
 
         <div id="statusMessage" class="status-message"></div>
+
+        <!-- Restart banner (shown after save) -->
+        <div id="restartBanner" class="restart-banner" style="display:none;">
+            <div class="restart-banner-text">
+                Configuration saved. Restart the gateway for changes to take full effect.
+            </div>
+            <button id="restartBtn" class="restart-banner-btn">Restart Gateway</button>
+        </div>
 
         <form id="configForm">
             <!-- Agents Section -->
@@ -527,7 +574,11 @@
             });
 
             if (response.ok) {
+                const result = await response.json();
                 showStatus('Configuration saved successfully', 'success');
+                if (result.restart_required) {
+                    document.getElementById('restartBanner').style.display = 'flex';
+                }
             } else {
                 const error = await response.json();
                 showStatus(`Failed to save: ${error.detail?.error || 'Unknown error'}`, 'error');
@@ -553,6 +604,34 @@
         } catch (error) {
             showStatus('Failed to reload configuration', 'error');
         }
+    });
+
+    // Restart gateway
+    document.getElementById('restartBtn').addEventListener('click', async () => {
+        if (!confirm('This will restart the gateway process. The page will reload automatically when ready. Continue?')) {
+            return;
+        }
+        const btn = document.getElementById('restartBtn');
+        btn.disabled = true;
+        btn.textContent = 'Restarting...';
+
+        // Fire-and-forget: the server will exit, so this request will fail
+        fetch('/api/restart', { method: 'POST' }).catch(() => {});
+
+        // Wait a moment for the old process to die, then start polling.
+        // Use recursive setTimeout so it survives across page navigation attempts.
+        setTimeout(function poll() {
+            fetch('/api/health', { cache: 'no-store' })
+                .then(r => {
+                    if (r.ok) {
+                        // Gateway is back — reload everything fresh
+                        location.reload();
+                    } else {
+                        setTimeout(poll, 1000);
+                    }
+                })
+                .catch(() => setTimeout(poll, 1000));
+        }, 2000);
     });
 
     // Show status message
