@@ -155,7 +155,7 @@ class WhatsAppChannel(BaseChannel):
                     "to": chat_id,
                     "filePath": media_path,
                     "mimetype": mime or "application/octet-stream",
-                    "fileName": media_path.rsplit("/", 1)[-1],
+                    "fileName": os.path.basename(media_path),
                 }
                 await self._ws.send(json.dumps(payload, ensure_ascii=False))
             except Exception as e:

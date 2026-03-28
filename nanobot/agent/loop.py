@@ -187,6 +187,9 @@ class AgentLoop:
             if cron_tool := self.tools.get("cron"):
                 if hasattr(cron_tool, "set_member"):
                     cron_tool.set_member(member)
+            if spawn_tool := self.tools.get("spawn"):
+                if hasattr(spawn_tool, "set_member"):
+                    spawn_tool.set_member(member)
 
     @staticmethod
     def _strip_think(text: str | None) -> str | None:
@@ -459,10 +462,11 @@ class AgentLoop:
             self._set_tool_context(channel, chat_id, msg.metadata.get("message_id"))
             history = session.get_history(max_messages=0)
             current_role = "assistant" if msg.sender_id == "subagent" else "user"
+            is_dm = msg._is_dm()
             messages = self.context.build_messages(
                 history=history,
                 current_message=msg.content, channel=channel, chat_id=chat_id,
-                current_role=current_role,
+                current_role=current_role, member=member, is_dm=is_dm,
             )
             final_content, _, all_msgs = await self._run_agent_loop(
                 messages, channel=channel, chat_id=chat_id,
@@ -489,6 +493,7 @@ class AgentLoop:
         await self.memory_consolidator.maybe_consolidate_by_tokens(session)
 
         member = getattr(msg, "member", None)
+        is_dm = msg._is_dm()
         self._set_tool_context(msg.channel, msg.chat_id, msg.metadata.get("message_id"), member=member)
         if message_tool := self.tools.get("message"):
             if isinstance(message_tool, MessageTool):
@@ -501,6 +506,7 @@ class AgentLoop:
             media=msg.media if msg.media else None,
             channel=msg.channel, chat_id=msg.chat_id,
             member=member,
+            is_dm=is_dm,
         )
 
         async def _bus_progress(content: str, *, tool_hint: bool = False) -> None:

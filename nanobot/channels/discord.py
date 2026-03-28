@@ -346,6 +346,7 @@ class DiscordChannel(BaseChannel):
                 "guild_id": guild_id,
                 "reply_to": reply_to,
             },
+            is_dm=guild_id is None,
         )
 
     def _should_respond_in_group(self, payload: dict[str, Any], content: str) -> bool:

@@ -125,11 +125,14 @@ class MemoryStore:
         model: str,
         member: TeamMember | None = None,
         user_profile_path: Path | None = None,
+        extra_members: list | None = None,
     ) -> bool:
         """Consolidate the provided message chunk into MEMORY.md + HISTORY.md.
 
         When *member* is provided, the LLM is also instructed to extract
         user-specific facts and write them to *user_profile_path* (USER.md).
+        *extra_members* lists additional members found in a group chat so the
+        consolidation prompt can route their facts correctly.
         """
         if not messages:
             return True
@@ -141,13 +144,29 @@ class MemoryStore:
 
         user_section = ""
         if member:
-            user_section = f"""
+            all_names = [member.nickname]
+            if extra_members:
+                all_names += [m.nickname for m in extra_members]
+
+            if len(all_names) == 1:
+                user_section = f"""
 ## Current User Profile ({member.nickname})
 {current_profile or "(empty)"}
 
 Instructions: Separate team knowledge (shared projects, decisions, facts) into memory_update,
 and personal facts about {member.nickname} (preferences, skills, work style, individual context)
 into user_profile_update."""
+            else:
+                names_str = ", ".join(all_names)
+                user_section = f"""
+## Participants in this conversation: {names_str}
+
+## Current User Profile ({member.nickname})
+{current_profile or "(empty)"}
+
+Instructions: Separate team knowledge into memory_update.
+For personal facts, attribute them to the correct user. Put {member.nickname}'s facts into user_profile_update.
+Mention other users' facts in the history_entry for reference."""
 
         prompt = f"""Process this conversation and call the save_memory tool with your consolidation.
 
@@ -296,7 +315,13 @@ class MemoryConsolidator:
         return self._locks.setdefault(session_key, asyncio.Lock())
 
     def _resolve_member_for_session(self, session_key: str) -> TeamMember | None:
-        """Derive the TeamMember for a user DM session key, if any."""
+        """Derive the TeamMember for a session.
+
+        For DM sessions (``<channel>:user:<nickname>``) the member is read
+        directly from the key.  For group sessions the key alone isn't enough,
+        so we fall back to inspecting the ``name`` field on recent user
+        messages in the consolidated chunk (attached by ContextBuilder).
+        """
         if not self.team_manager:
             return None
         # DM session keys: "<channel>:user:<nickname>"
@@ -304,6 +329,24 @@ class MemoryConsolidator:
             nickname = session_key.split(":user:", 1)[1]
             return self.team_manager.get_member_by_nickname(nickname)
         return None
+
+    def _find_members_in_messages(
+        self, messages: list[dict[str, object]],
+    ) -> list[TeamMember]:
+        """Extract unique team members from the ``name`` field on user messages."""
+        if not self.team_manager:
+            return []
+        seen: set[str] = set()
+        members: list[TeamMember] = []
+        for m in messages:
+            if m.get("role") == "user" and isinstance(m.get("name"), str):
+                nick = m["name"]
+                if nick not in seen:
+                    member = self.team_manager.get_member_by_nickname(nick)
+                    if member:
+                        seen.add(nick)
+                        members.append(member)
+        return members
 
     async def consolidate_messages(
         self,
@@ -313,9 +356,19 @@ class MemoryConsolidator:
 
         Team-aware: if _current_session_key is set on the instance (set by
         _consolidate_for_session before calling this), member routing is applied.
+        For group sessions the member is resolved from message ``name`` fields.
         """
         session_key = getattr(self, "_current_session_key", "")
         member = self._resolve_member_for_session(session_key)
+
+        # Group chat fallback: find members from message names.
+        group_members: list | None = None
+        if not member:
+            group_members = self._find_members_in_messages(messages)
+            # Use the most active member for the single-user profile path.
+            if group_members:
+                member = group_members[0]
+
         user_profile_path = (
             self.team_manager.user_profile_path(member.nickname)
             if member and self.team_manager
@@ -323,7 +376,9 @@ class MemoryConsolidator:
         )
         return await self.store.consolidate(
             messages, self.provider, self.model,
-            member=member, user_profile_path=user_profile_path,
+            member=member,
+            user_profile_path=user_profile_path,
+            extra_members=group_members[1:] if group_members and len(group_members) > 1 else None,
         )
 
     async def _consolidate_for_session(

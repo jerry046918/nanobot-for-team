@@ -1154,7 +1154,8 @@ class FeishuChannel(BaseChannel):
                     "parent_id": parent_id,
                     "root_id": root_id,
                     "thread_id": thread_id,
-                }
+                },
+                is_dm=chat_type != "group",
             )
 
         except Exception as e:

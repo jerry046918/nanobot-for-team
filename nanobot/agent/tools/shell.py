@@ -114,8 +114,9 @@ class ExecTool(Tool):
                     pass
                 finally:
                     try:
-                        os.waitpid(process.pid, os.WNOHANG)
-                    except (ProcessLookupError, ChildProcessError) as e:
+                        if os.name != "nt":
+                            os.waitpid(process.pid, os.WNOHANG)
+                    except (ProcessLookupError, ChildProcessError, OSError) as e:
                         logger.debug("Process already reaped or not found: {}", e)
                 return f"Error: Command timed out after {effective_timeout} seconds"
 

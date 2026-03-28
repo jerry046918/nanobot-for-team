@@ -155,7 +155,7 @@ class WebSearchTool(Tool):
             logger.warning("SEARXNG_BASE_URL not set, falling back to DuckDuckGo")
             return await self._search_duckduckgo(query, n)
         endpoint = f"{base_url.rstrip('/')}/search"
-        is_valid, error_msg = _validate_url(endpoint)
+        is_valid, error_msg = _validate_url_safe(endpoint)
         if not is_valid:
             return f"Error: invalid SearXNG URL: {error_msg}"
         try:
@@ -265,6 +265,10 @@ class WebFetchTool(Tool):
 
     async def _fetch_jina(self, url: str, max_chars: int) -> str | None:
         """Try fetching via Jina Reader API. Returns None on failure."""
+        # Validate target URL for SSRF protection before sending to Jina
+        is_valid, error_msg = _validate_url_safe(url)
+        if not is_valid:
+            return None
         try:
             headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
             jina_key = os.environ.get("JINA_API_KEY", "")

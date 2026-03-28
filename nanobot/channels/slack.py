@@ -236,6 +236,7 @@ class SlackChannel(BaseChannel):
                     },
                 },
                 session_key=session_key,
+                is_dm=channel_type == "im",
             )
         except Exception:
             logger.exception("Error handling Slack message from {}", sender_id)

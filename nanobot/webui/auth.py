@@ -1,5 +1,7 @@
 """Token generation and validation for WebUI authentication."""
 
+import asyncio
+import hashlib
 import json
 import secrets
 from datetime import datetime, timezone, timedelta
@@ -23,6 +25,7 @@ class SessionManager:
     def __init__(self, workspace: Path | None = None):
         self._sessions: dict[str, dict[str, Any]] = {}
         self._persist_path = workspace / self.SESSIONS_FILE if workspace else None
+        self._lock = asyncio.Lock()
         self._load()
 
     def _load(self) -> None:
@@ -49,8 +52,10 @@ class SessionManager:
     def create_session(self, token_hash: str) -> str:
         """Create a new session and return session ID."""
         session_id = secrets.token_urlsafe(32)
+        # Store hash of the token instead of raw value
+        hashed = hashlib.sha256(token_hash.encode()).hexdigest()
         self._sessions[session_id] = {
-            "token_hash": token_hash,
+            "token_hash": hashed,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         self._save()
@@ -137,21 +142,24 @@ class TokenManager:
 
     def validate_token(self, token: str) -> bool:
         """Validate a token against stored hashes."""
-        if not token or len(token) != 32:
+        if not token:
             return False
 
         tokens = self._load_tokens()
         now = datetime.now(timezone.utc)
+        matched = False
 
         for t in tokens:
             expires_at = datetime.fromisoformat(t["expires_at"])
             if expires_at < now:
                 continue
             if bcrypt.checkpw(token.encode(), t["token_hash"].encode()):
+                matched = True
                 t["last_used"] = now.isoformat()
-                self._save_tokens(tokens)
-                return True
-        return False
+
+        if matched:
+            self._save_tokens(tokens)
+        return matched
 
     def revoke_all(self) -> int:
         """Revoke all tokens. Returns count revoked."""

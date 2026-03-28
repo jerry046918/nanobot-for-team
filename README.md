@@ -153,9 +153,11 @@ This prints a URL like `http://localhost:18791/?token=xxx`. Open it in your brow
 ### Security
 
 - Token-based authentication — `nanobot webui` generates a time-limited login URL
-- Session cookies with `HttpOnly` flag
+- Session cookies with `HttpOnly` and `SameSite=Lax` flags
+- Tokens stored as bcrypt hashes (never in plaintext)
 - WebSocket connections validated against session
 - Origin header checked on WebSocket upgrade
+- Skill name validation prevents path traversal in WebUI APIs
 
 ## 👥 Team Mode
 
@@ -909,6 +911,13 @@ Use `toolTimeout` to override the default 30s per-call timeout, and `enabledTool
 | `tools.restrictToWorkspace` | `false` | Restrict all agent tools to the workspace directory |
 | `tools.exec.enable` | `true` | When `false`, disable shell command execution entirely |
 | `channels.*.allowFrom` | `[]` (deny all) | Whitelist of user IDs. Use `["*"]` to allow everyone. |
+
+**Built-in protections:**
+- **SSRF protection**: All outbound web requests validate resolved IPs against private/internal ranges
+- **Path traversal**: Filesystem tools enforce workspace boundaries; WebUI APIs validate paths
+- **Config permissions**: `config.json` is saved with owner-only read/write permissions (`0o600`)
+- **WebUI auth**: Token-based login with `HttpOnly`, `SameSite=Lax` session cookies; tokens stored as bcrypt hashes
+- **Shell safety**: Deny-list blocks destructive commands (rm -rf, shutdown, etc.); optional allow-list mode
 
 ## 💻 CLI Reference
 

@@ -118,7 +118,10 @@ def test_get_session_invalid():
     session_id = sm.create_session("test_token_hash")
     session_data = sm.get_session(session_id)
     assert session_data is not None
-    assert session_data["token_hash"] == "test_token_hash"
+    # token_hash is now SHA-256 hashed, not stored raw
+    import hashlib
+    expected_hash = hashlib.sha256("test_token_hash".encode()).hexdigest()
+    assert session_data["token_hash"] == expected_hash
 
 
 def test_cleanup_expired():

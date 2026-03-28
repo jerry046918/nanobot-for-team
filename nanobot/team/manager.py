@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,13 @@ if TYPE_CHECKING:
     pass
 
 _REGISTRY_FILE = "team.json"
+
+_UNSAFE_NICKNAME_RE = re.compile(r"[^\w.\-]")
+
+
+def _sanitize_nickname(nickname: str) -> str:
+    """Sanitize nickname to prevent path traversal."""
+    return _UNSAFE_NICKNAME_RE.sub("_", nickname.strip())
 
 
 def _member_to_dict(m: TeamMember) -> dict:
@@ -182,7 +190,7 @@ class TeamManager:
 
     def user_dir(self, nickname: str) -> Path:
         """Return (and create) the workspace directory for a specific user."""
-        d = self.workspace / "users" / nickname
+        d = self.workspace / "users" / _sanitize_nickname(nickname)
         ensure_dir(d)
         return d
 

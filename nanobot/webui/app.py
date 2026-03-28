@@ -65,6 +65,8 @@ def create_app(
                     key="session_id",
                     value=session_id,
                     httponly=True,
+                    secure=request.url.scheme == "https",
+                    samesite="lax",
                     max_age=86400,  # 24 hours
                 )
                 return response

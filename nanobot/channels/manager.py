@@ -130,10 +130,11 @@ class ChannelManager:
                     timeout=1.0
                 )
 
-                if msg.metadata.get("_progress"):
-                    if msg.metadata.get("_tool_hint") and not self.config.channels.send_tool_hints:
+                meta = msg.metadata or {}
+                if meta.get("_progress"):
+                    if meta.get("_tool_hint") and not self.config.channels.send_tool_hints:
                         continue
-                    if not msg.metadata.get("_tool_hint") and not self.config.channels.send_progress:
+                    if not meta.get("_tool_hint") and not self.config.channels.send_progress:
                         continue
 
                 channel = self.channels.get(msg.channel)

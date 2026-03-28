@@ -528,6 +528,7 @@ class DingTalkChannel(BaseChannel):
                     "platform": "dingtalk",
                     "conversation_type": conversation_type,
                 },
+                is_dm=not is_group,
             )
         except Exception as e:
             logger.error("Error publishing DingTalk message: {}", e)

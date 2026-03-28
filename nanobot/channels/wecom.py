@@ -296,7 +296,8 @@ class WecomChannel(BaseChannel):
                     "message_id": msg_id,
                     "msg_type": msg_type,
                     "chat_type": chat_type,
-                }
+                },
+                is_dm=chat_type == "single",
             )
 
         except Exception as e:

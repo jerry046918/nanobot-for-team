@@ -58,6 +58,10 @@ async def test_searxng_search(monkeypatch):
             "results": [{"title": "Result", "url": "https://example.com", "content": "SearXNG result"}]
         })
 
+    # Mock SSRF validation to allow the test hostname
+    from nanobot.security import network as net_mod
+    monkeypatch.setattr(net_mod, "validate_url_target", lambda url: (True, ""))
+
     monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
     tool = _tool(provider="searxng", base_url="https://searx.example")
     result = await tool.execute(query="test")
