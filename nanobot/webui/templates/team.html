@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% block nav_team %}active{% endblock %}
+
 {% block title %}Team - nanobot{% endblock %}
 
 {% block head %}
@@ -31,77 +33,117 @@
         background-color: var(--accent-hover);
     }
 
-    .team-table {
-        width: 100%;
-        border-collapse: collapse;
+    .members-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: var(--spacing-md);
+    }
+
+    .member-card {
         background-color: var(--bg-secondary);
+        border: 1px solid var(--border-color);
         border-radius: var(--radius-md);
-        overflow: hidden;
+        padding: var(--spacing-lg);
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        transition: border-color 0.2s, box-shadow 0.2s;
     }
 
-    .team-table th {
-        padding: var(--spacing-md);
-        text-align: left;
-        background-color: var(--bg-tertiary);
-        color: var(--text-primary);
+    .member-card:hover {
+        border-color: var(--accent);
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.08);
+    }
+
+    .member-card-header {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    .member-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: var(--accent);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1rem;
+        flex-shrink: 0;
+        text-transform: uppercase;
+    }
+
+    .member-card-name {
         font-weight: 600;
-        font-size: 0.875rem;
-        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-size: 0.95rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
-    .team-table td {
-        padding: var(--spacing-md);
-        border-bottom: 1px solid var(--border-color);
-        color: var(--text-secondary);
-        font-size: 0.875rem;
-    }
-
-    .team-table tr:last-child td {
-        border-bottom: none;
-    }
-
-    .team-table tr:hover td {
-        background-color: var(--bg-tertiary);
-    }
-
-    .team-role-badge {
+    .member-role-badge {
         display: inline-block;
         padding: 2px 8px;
         border-radius: var(--radius-sm);
-        font-size: 0.75rem;
-        font-weight: 500;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
     }
 
-    .team-role-badge.admin {
+    .member-role-badge.admin {
         background-color: rgba(59, 130, 246, 0.15);
         color: var(--accent);
     }
 
-    .team-role-badge.member {
+    .member-role-badge.member {
         background-color: rgba(107, 114, 128, 0.15);
         color: var(--text-secondary);
     }
 
-    .team-channel-list {
+    .member-card-meta {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-xs);
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .member-card-channels {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 2px;
+    }
+
+    .channel-pill {
+        display: inline-block;
+        padding: 2px 8px;
+        background-color: var(--bg-tertiary);
+        border-radius: 999px;
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .member-card-joined {
         font-size: 0.75rem;
         color: var(--text-muted);
     }
 
-    .team-channel-item {
-        display: inline-block;
-        margin-right: var(--spacing-sm);
-        padding: 2px 6px;
-        background-color: var(--bg-tertiary);
-        border-radius: var(--radius-sm);
-    }
-
-    .team-actions {
+    .member-card-actions {
         display: flex;
         gap: var(--spacing-xs);
+        margin-top: auto;
+        padding-top: var(--spacing-sm);
+        border-top: 1px solid var(--border-color);
     }
 
-    .team-action-btn {
-        padding: 4px 8px;
+    .member-action-btn {
+        padding: 4px 10px;
         background-color: transparent;
         border: 1px solid var(--border-color);
         border-radius: var(--radius-sm);
@@ -111,12 +153,12 @@
         transition: all 0.2s;
     }
 
-    .team-action-btn:hover {
+    .member-action-btn:hover {
         background-color: var(--bg-tertiary);
         color: var(--text-primary);
     }
 
-    .team-action-btn.delete:hover {
+    .member-action-btn.delete:hover {
         background-color: rgba(239, 68, 68, 0.1);
         border-color: var(--error);
         color: var(--error);
@@ -337,24 +379,11 @@
 
 <div id="statusMessage" class="status-message"></div>
 
-<table class="team-table">
-    <thead>
-        <tr>
-            <th>Nickname</th>
-            <th>Role</th>
-            <th>Channel Bindings</th>
-            <th>Joined</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody id="membersTableBody">
-        <tr>
-            <td colspan="5" class="empty-state">
-                <div>Loading...</div>
-            </td>
-        </tr>
-    </tbody>
-</table>
+<div id="membersGrid" class="members-grid">
+    <div class="empty-state">
+        <div>Loading...</div>
+    </div>
+</div>
 
 <!-- Add Member Modal -->
 <div id="addMemberModal" class="modal">
@@ -436,43 +465,49 @@
         }
     }
 
-    // Render members table
+    // Render members as card grid
     function renderMembers() {
-        const tbody = document.getElementById('membersTableBody');
+        const grid = document.getElementById('membersGrid');
 
         if (currentMembers.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="5" class="empty-state">
-                        <div>No team members yet</div>
-                        <div class="empty-state-text">Click "Add Member" to get started</div>
-                    </td>
-                </tr>
+            grid.innerHTML = `
+                <div class="empty-state" style="grid-column: 1 / -1;">
+                    <div>No team members yet</div>
+                    <div class="empty-state-text">Click "Add Member" to get started</div>
+                </div>
             `;
             return;
         }
 
-        tbody.innerHTML = currentMembers.map(member => `
-            <tr>
-                <td><strong>${escapeHtml(member.nickname)}</strong></td>
-                <td><span class="team-role-badge ${member.role}">${member.role}</span></td>
-                <td>
-                    ${Object.keys(member.channel_ids).length > 0
-                        ? Object.entries(member.channel_ids).map(([channel, senderId]) =>
-                            `<span class="team-channel-item">${escapeHtml(channel)}: ${escapeHtml(senderId)}</span>`
-                          ).join('')
-                        : '<span style="color: var(--text-muted)">None</span>'
-                    }
-                </td>
-                <td>${member.joined_at ? new Date(member.joined_at).toLocaleDateString() : '-'}</td>
-                <td>
-                    <div class="team-actions">
-                        <button class="team-action-btn" onclick="openEditModal('${escapeHtml(member.nickname)}')">Edit</button>
-                        <button class="team-action-btn delete" onclick="removeMember('${escapeHtml(member.nickname)}')">Remove</button>
+        grid.innerHTML = currentMembers.map(member => {
+            const initials = member.nickname.slice(0, 2);
+            const channelPills = Object.keys(member.channel_ids).length > 0
+                ? Object.entries(member.channel_ids).map(([channel, senderId]) =>
+                    `<span class="channel-pill">${escapeHtml(channel)}: ${escapeHtml(senderId)}</span>`
+                  ).join('')
+                : '<span style="color: var(--text-muted); font-size: 0.75rem;">No channels</span>';
+            const joinedDate = member.joined_at ? new Date(member.joined_at).toLocaleDateString() : '-';
+
+            return `
+                <div class="member-card">
+                    <div class="member-card-header">
+                        <div class="member-avatar">${escapeHtml(initials)}</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div class="member-card-name">${escapeHtml(member.nickname)}</div>
+                            <span class="member-role-badge ${member.role}">${member.role}</span>
+                        </div>
                     </div>
-                </td>
-            </tr>
-        `).join('');
+                    <div class="member-card-meta">
+                        <div class="member-card-channels">${channelPills}</div>
+                    </div>
+                    <div class="member-card-joined">Joined: ${joinedDate}</div>
+                    <div class="member-card-actions">
+                        <button class="member-action-btn" onclick="openEditModal('${escapeHtml(member.nickname)}')">Edit</button>
+                        <button class="member-action-btn delete" onclick="removeMember('${escapeHtml(member.nickname)}')">Remove</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     // Add member
