@@ -4,10 +4,14 @@
 {% block content %}
 <div class="login-container">
     <div class="login-card">
-        <h2>🐈 nanobot WebUI</h2>
-        <p style="color: var(--text-secondary); margin: 1rem 0;">
-            Run <code style="background: var(--bg-tertiary); padding: 0.2rem 0.5rem; border-radius: 4px;">nanobot webui</code> in your terminal to get a login URL.
-        </p>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="url(#loginGrad)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: var(--sp-4);" aria-hidden="true">
+            <defs><linearGradient id="loginGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient></defs>
+            <path d="M12 5c.67 0 1.35.09 2 .26 1.78-2.17 4.76-2.87 7.2-1.7.97.47 1.54 1.5 1.54 2.58 0 1.31-.87 2.46-2.12 2.85.24.84.38 1.73.38 2.66 0 4.42-4.03 8-9 8s-9-3.58-9-8 4.03-8 9-8z"/>
+            <circle cx="9" cy="13" r="1" fill="url(#loginGrad)"/>
+            <circle cx="15" cy="13" r="1" fill="url(#loginGrad)"/>
+        </svg>
+        <h2>nanobot WebUI</h2>
+        <p>Run <code>nanobot webui</code> in your terminal to get a login URL.</p>
         {% if error %}
         <p class="login-error">{{ error }}</p>
         {% endif %}
